@@ -108,7 +108,7 @@ class DashboardScreen extends StatelessWidget {
                       Icon(Icons.event_available_rounded, color: p.gold),
                       const SizedBox(width: 12),
                       Expanded(
-                        child: Text('لا توجد مصاريف دورية بعد — أضف الإيجار أو الفواتير ليذكّرك التطبيق قبل موعدها',
+                        child: Text('لا توجد مصاريف شهرية بعد — أضف الإيجار أو الفواتير ليذكّرك التطبيق قبل موعدها',
                             style: TextStyle(color: p.dim, height: 1.6, fontSize: 13)),
                       ),
                     ]),
@@ -143,10 +143,7 @@ class DashboardScreen extends StatelessWidget {
                         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                           Text('التزاماتك الشهرية تقريباً', style: TextStyle(color: p.dim, fontSize: 12.5)),
                           const SizedBox(height: 4),
-                          Wrap(spacing: 14, crossAxisAlignment: WrapCrossAlignment.end, children: [
-                            if (load.usd > 0) MoneyText(load.usd, Cur.usd, size: 17),
-                            if (load.syp > 0) MoneyText(load.syp, Cur.syp, size: 17),
-                          ]),
+                          MoneyPair(usd: load.usd, syp: load.syp, size: 17, color: p.text),
                         ]),
                       ),
                     ]),

@@ -47,7 +47,7 @@ class ExpensesScreen extends StatelessWidget {
               padding: const EdgeInsets.fromLTRB(18, 14, 18, 10),
               child: Row(children: [
                 Expanded(
-                  child: Text('المصاريف الدورية',
+                  child: Text('المصاريف الشهرية',
                       style: TextStyle(fontFamily: kHead, fontWeight: FontWeight.w800, fontSize: 26, color: p.text)),
                 ),
                 IconButton.filledTonal(
@@ -76,10 +76,7 @@ class ExpensesScreen extends StatelessWidget {
                       if (load.usd == 0 && load.syp == 0)
                         Text('—', style: TextStyle(color: p.text, fontSize: 20))
                       else
-                        Wrap(spacing: 14, runSpacing: 4, crossAxisAlignment: WrapCrossAlignment.end, children: [
-                          if (load.usd > 0) MoneyText(load.usd, Cur.usd, size: 22, color: p.gold),
-                          if (load.syp > 0) MoneyText(load.syp, Cur.syp, size: 18, color: p.gold),
-                        ]),
+                        MoneyPair(usd: load.usd, syp: load.syp, size: 20, color: p.gold),
                     ]),
                   ),
                   Column(children: [

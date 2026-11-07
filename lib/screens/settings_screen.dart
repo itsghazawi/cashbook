@@ -123,7 +123,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   value: AppStore.I.lastRate <= 0
                       ? (RateService.I.busy ? 'جارٍ جلب سعر اليوم…' : 'غير محدد — اضغط لكتابته')
                       : AppStore.I.autoRateFresh
-                          ? '${fmtNum(AppStore.I.lastRate)} ل.س · سعر اليوم (${RateService.source}) · ${fmtTime(AppStore.I.rateAutoAt!)}'
+                          ? '${fmtNum(AppStore.I.lastRate)} ل.س · سعر اليوم بالسوق السورية · ${fmtTime(AppStore.I.rateAutoAt!)}'
                           : '${fmtNum(AppStore.I.lastRate)} ل.س · مُدخل يدوياً',
                   valueColor: AppStore.I.autoRateFresh ? p.green : null,
                   onTap: _editRate,

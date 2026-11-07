@@ -584,3 +584,33 @@ Future<void> showDoneTick(BuildContext context, String label) async {
   );
   open = false;
 }
+
+/// USD and SYP amounts side by side, same size, sitting on one baseline.
+class MoneyPair extends StatelessWidget {
+  final double usd, syp;
+  final double size;
+  final Color color;
+  const MoneyPair({super.key, required this.usd, required this.syp, required this.size, required this.color});
+
+  @override
+  Widget build(BuildContext context) {
+    final p = Pal.of(context);
+    final parts = <Widget>[
+      if (usd > 0) MoneyText(usd, Cur.usd, size: size, color: color),
+      if (syp > 0) MoneyText(syp, Cur.syp, size: size, color: color),
+    ];
+    if (parts.length < 2) return parts.isEmpty ? const SizedBox.shrink() : parts.first;
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.baseline,
+      textBaseline: TextBaseline.alphabetic,
+      children: [
+        Flexible(child: parts[0]),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 10),
+          child: Text('·', style: TextStyle(color: p.faint, fontSize: size * 0.8)),
+        ),
+        Flexible(child: parts[1]),
+      ],
+    );
+  }
+}

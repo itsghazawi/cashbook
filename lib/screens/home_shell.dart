@@ -1,10 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
 import '../core/app_lock.dart';
 import '../core/notifications.dart';
-import '../core/settings.dart';
 import '../ui/theme.dart';
 import '../ui/widgets.dart';
 import 'app_lock_screen.dart';
@@ -56,52 +54,9 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
     WidgetsBinding.instance.addPostFrameCallback((_) => _askName());
   }
 
-  /// First run: ask the owner's name (shown as sender on PDF statements).
-  Future<void> _askName() async {
-    final prefs = await SharedPreferences.getInstance();
-    if (AppSettings.ownerName.value.isNotEmpty || prefs.getBool('asked_owner') == true) {
-      await NotificationService.I.requestAllOnce();
-      return;
-    }
-    await prefs.setBool('asked_owner', true);
-    if (!mounted) return;
-    final p = Pal.of(context);
-    final c = TextEditingController();
-    final name = await showDialog<String>(
-      context: context,
-      barrierDismissible: false,
-      builder: (d) => Dialog(
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(22, 26, 22, 18),
-          child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-            const Center(child: BrandMark(size: 58)),
-            const SizedBox(height: 14),
-            Text('أهلاً بك في كاش بوك',
-                textAlign: TextAlign.center,
-                style: TextStyle(fontFamily: kHead, fontWeight: FontWeight.w800, fontSize: 20, color: p.text)),
-            const SizedBox(height: 8),
-            Text('اكتب اسمك أو اسم محلك ليظهر كمُرسِل في كشوف الحساب التي ترسلها لزبائنك',
-                textAlign: TextAlign.center, style: TextStyle(color: p.dim, height: 1.6, fontSize: 13)),
-            const SizedBox(height: 16),
-            TextField(
-              controller: c,
-              autofocus: true,
-              decoration: const InputDecoration(hintText: 'مثلاً: أيهم الغزاوي', prefixIcon: Icon(Icons.badge_rounded)),
-            ),
-            const SizedBox(height: 16),
-            GoldButton(label: 'حفظ', icon: Icons.check_rounded, onPressed: () => Navigator.pop(d, c.text.trim())),
-            TextButton(
-              onPressed: () => Navigator.pop(d),
-              child: Text('لاحقاً', style: TextStyle(color: p.faint)),
-            ),
-          ]),
-        ),
-      ),
-    );
-    if (name != null && name.isNotEmpty) await AppSettings.setOwnerName(name);
-    // Then ask for notifications + exact reminders once, so they work right away.
-    await NotificationService.I.requestAllOnce();
-  }
+  /// First run: only the small system prompt for notifications. The owner's
+  /// name is asked later, the first time a statement is sent.
+  Future<void> _askName() => NotificationService.I.requestAllOnce();
 
   void go(int i) => setState(() => _tab = i);
 
@@ -140,7 +95,7 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
             _QuickTile(
               icon: Icons.event_repeat_rounded,
               color: p.gold,
-              title: 'مصروف دوري',
+              title: 'مصروف شهري',
               subtitle: 'إيجار، فواتير، اشتراكات… مع تذكير قبل الموعد',
               onTap: () {
                 Navigator.pop(c);

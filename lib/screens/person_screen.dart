@@ -84,7 +84,7 @@ class PersonScreen extends StatelessWidget {
                       child: Row(children: [
                         Expanded(
                           child: GhostButton(
-                            label: 'معاينة PDF',
+                            label: 'عرض الكشف',
                             icon: Icons.visibility_rounded,
                             color: p.gold,
                             onPressed: list.isEmpty ? null : () => _preview(context, person),
@@ -93,7 +93,7 @@ class PersonScreen extends StatelessWidget {
                         const SizedBox(width: 10),
                         Expanded(
                           child: GoldButton(
-                            label: 'إرسال PDF',
+                            label: 'إرسال الكشف',
                             icon: Icons.send_rounded,
                             onPressed: list.isEmpty ? null : () => _share(context, person),
                           ),
@@ -384,8 +384,6 @@ class _ActionBtn extends StatelessWidget {
         Icon(icon, color: color),
         const SizedBox(height: 6),
         Text(label, style: TextStyle(fontFamily: kHead, fontWeight: FontWeight.w700, color: color, fontSize: 15.5)),
-        const SizedBox(height: 3),
-        Text(hint, style: TextStyle(color: p.dim, fontSize: 11)),
       ]),
     );
   }

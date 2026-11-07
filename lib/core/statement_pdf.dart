@@ -157,24 +157,22 @@ class StatementPdf {
     pw.Widget amountChip(double v, String cur) {
       final pos = v > 0;
       final c = pos ? _green : _rose;
-      final label = pos ? 'لي عليك' : 'لك عندي';
-      return pw.Container(
-        margin: const pw.EdgeInsets.only(top: 8),
-        padding: const pw.EdgeInsets.symmetric(horizontal: 14, vertical: 7),
-        decoration: pw.BoxDecoration(
-          color: PdfColors.white,
-          borderRadius: pw.BorderRadius.circular(10),
-          border: pw.Border.all(color: c, width: 0.8),
-        ),
-        child: pw.Row(children: [
-          pw.Container(width: 7, height: 7, decoration: pw.BoxDecoration(color: c, shape: pw.BoxShape.circle)),
-          pw.SizedBox(width: 8),
-          pw.Text(label, style: st(11, color: c, font: f.bodyBold)),
-          pw.Spacer(),
-          pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.end, children: [
-            pw.Text(fmtMoney(v.abs(), cur), style: st(18, color: c, font: f.headBold)),
+      return pw.Expanded(
+        child: pw.Container(
+          padding: const pw.EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+          decoration: pw.BoxDecoration(
+            color: PdfColors.white,
+            borderRadius: pw.BorderRadius.circular(10),
+            border: pw.Border.all(color: c, width: 0.8),
+          ),
+          child: pw.Row(children: [
+            pw.Container(width: 6, height: 6, decoration: pw.BoxDecoration(color: c, shape: pw.BoxShape.circle)),
+            pw.SizedBox(width: 6),
+            pw.Text(pos ? 'لي عليك' : 'لك عندي', style: st(9.5, color: c, font: f.bodyBold)),
+            pw.Spacer(),
+            pw.Text(fmtMoney(v.abs(), cur), style: st(13.5, color: c, font: f.headBold)),
           ]),
-        ]),
+        ),
       );
     }
 
@@ -204,41 +202,32 @@ class StatementPdf {
       );
     }
 
-    pw.Widget banner() => pw.Container(
-          decoration: pw.BoxDecoration(color: accent, borderRadius: pw.BorderRadius.circular(16)),
-          child: pw.Container(
-          margin: const pw.EdgeInsets.only(right: 6),
-          padding: const pw.EdgeInsets.all(14),
-          decoration: pw.BoxDecoration(
-            color: accentSoft,
-            borderRadius: pw.BorderRadius.circular(14),
-          ),
-          child: pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.stretch, children: [
-            pw.Row(children: [
-              pw.Container(
-                width: 30,
-                height: 30,
-                alignment: pw.Alignment.center,
-                decoration: pw.BoxDecoration(color: accent, shape: pw.BoxShape.circle),
-                child: pw.Text(
-                  switch (mood) {
-                    StmtMood.theyOweMe => '←',
-                    StmtMood.iOweThem => '→',
-                    _ => '=',
-                  },
-                  style: st(15, color: PdfColors.white, font: f.headBold),
-                ),
-              ),
-              pw.SizedBox(width: 10),
-              pw.Text(title, style: st(22, color: accent, font: f.bodyBold)),
-            ]),
-            pw.SizedBox(height: 6),
-            pw.Text(message, style: st(10.5, color: _dim)),
-            if (bal.usd.abs() >= 0.005) amountChip(bal.usd, Cur.usd),
-            if (bal.syp.abs() >= 0.5) amountChip(bal.syp, Cur.syp),
+    pw.Widget banner() {
+      final chips = <pw.Widget>[
+        if (bal.usd.abs() >= 0.005) amountChip(bal.usd, Cur.usd),
+        if (bal.syp.abs() >= 0.5) amountChip(bal.syp, Cur.syp),
+      ];
+      if (chips.length == 2) chips.insert(1, pw.SizedBox(width: 8));
+      return pw.Container(
+        decoration: pw.BoxDecoration(color: accent, borderRadius: pw.BorderRadius.circular(12)),
+        child: pw.Container(
+        margin: const pw.EdgeInsets.only(right: 4),
+        padding: const pw.EdgeInsets.fromLTRB(12, 9, 12, 9),
+        decoration: pw.BoxDecoration(color: accentSoft, borderRadius: pw.BorderRadius.circular(11)),
+        child: pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.stretch, children: [
+          pw.Row(children: [
+            pw.Text(title, style: st(14, color: accent, font: f.bodyBold)),
+            pw.SizedBox(width: 10),
+            pw.Expanded(child: pw.Text(message, style: st(9, color: _dim))),
           ]),
+          if (chips.isNotEmpty) ...[
+            pw.SizedBox(height: 7),
+            pw.Row(children: chips),
+          ],
+        ]),
         ),
-        );
+      );
+    }
 
     // ---- table
     final headStyle = st(9.5, color: PdfColors.white, font: f.bodyBold);

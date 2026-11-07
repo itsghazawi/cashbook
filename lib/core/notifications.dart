@@ -22,7 +22,7 @@ class NotificationService {
   static const _channel = AndroidNotificationDetails(
     'cashbook_reminders',
     'تذكيرات المصاريف',
-    channelDescription: 'تذكير بمواعيد دفع المصاريف الدورية',
+    channelDescription: 'تذكير بمواعيد دفع المصاريف الشهرية',
     importance: Importance.max,
     priority: Priority.high,
     icon: 'ic_stat_cashbook',
@@ -66,22 +66,12 @@ class NotificationService {
     return await ios?.requestPermissions(alert: true, badge: true, sound: true) ?? false;
   }
 
-  /// First launch: ask for notifications + exact alarms in one go.
+  /// First launch: only the small system "allow notifications" prompt.
   Future<void> requestAllOnce() async {
     final prefs = await SharedPreferences.getInstance();
     if (prefs.getBool('perm_asked') == true) return;
     await prefs.setBool('perm_asked', true);
     await requestPermission();
-    if (!await canExact()) await requestExact();
-  }
-
-  Future<bool> canExact() async {
-    if (!Platform.isAndroid) return true;
-    return await _android?.canScheduleExactNotifications() ?? true;
-  }
-
-  Future<void> requestExact() async {
-    if (Platform.isAndroid) await _android?.requestExactAlarmsPermission();
   }
 
   /// Cancels everything and schedules reminders for the next two
@@ -90,8 +80,9 @@ class NotificationService {
     try {
       await init();
       await _plugin.cancelAll();
-      final exact = await canExact();
-      final mode = exact ? AndroidScheduleMode.exactAllowWhileIdle : AndroidScheduleMode.inexactAllowWhileIdle;
+      // Payment reminders don't need second-level precision: inexact alarms
+      // need no special permission or settings screen.
+      const mode = AndroidScheduleMode.inexactAllowWhileIdle;
       final now = DateTime.now();
 
       for (final e in expenses) {

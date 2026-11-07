@@ -101,7 +101,7 @@ class _ExpenseFormState extends State<ExpenseForm> {
   Widget build(BuildContext context) {
     final p = Pal.of(context);
     return Scaffold(
-      appBar: AppBar(title: Text(widget.edit == null ? 'مصروف دوري جديد' : 'تعديل المصروف')),
+      appBar: AppBar(title: Text(widget.edit == null ? 'مصروف شهري جديد' : 'تعديل المصروف')),
       body: ListView(
         padding: EdgeInsets.fromLTRB(18, 6, 18, 40 + MediaQuery.of(context).viewPadding.bottom),
         children: [
