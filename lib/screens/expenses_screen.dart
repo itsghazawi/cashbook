@@ -42,10 +42,10 @@ class ExpensesScreen extends StatelessWidget {
 
         return SafeArea(
           bottom: false,
-          child: ListView(
-            padding: const EdgeInsets.fromLTRB(18, 14, 18, 120),
-            children: [
-              Row(children: [
+          child: Column(children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(18, 14, 18, 10),
+              child: Row(children: [
                 Expanded(
                   child: Text('المصاريف الدورية',
                       style: TextStyle(fontFamily: kHead, fontWeight: FontWeight.w800, fontSize: 26, color: p.text)),
@@ -56,7 +56,11 @@ class ExpensesScreen extends StatelessWidget {
                   style: IconButton.styleFrom(backgroundColor: p.gold.withValues(alpha: 0.15), foregroundColor: p.gold),
                 ),
               ]),
-              const SizedBox(height: 14),
+            ),
+            Expanded(
+          child: ListView(
+            padding: EdgeInsets.fromLTRB(18, 4, 18, navClearance(context)),
+            children: [
               Surface(
                 gradient: LinearGradient(
                   colors: [p.gold.withValues(alpha: p.dark ? 0.18 : 0.14), p.gold.withValues(alpha: 0.03)],
@@ -72,7 +76,7 @@ class ExpensesScreen extends StatelessWidget {
                       if (load.usd == 0 && load.syp == 0)
                         Text('—', style: TextStyle(color: p.text, fontSize: 20))
                       else
-                        Wrap(spacing: 14, runSpacing: 4, children: [
+                        Wrap(spacing: 14, runSpacing: 4, crossAxisAlignment: WrapCrossAlignment.end, children: [
                           if (load.usd > 0) MoneyText(load.usd, Cur.usd, size: 22, color: p.gold),
                           if (load.syp > 0) MoneyText(load.syp, Cur.syp, size: 18, color: p.gold),
                         ]),
@@ -97,7 +101,7 @@ class ExpensesScreen extends StatelessWidget {
                 EmptyState(
                   icon: Icons.notifications_active_rounded,
                   title: 'لا تفوّت أي دفعة',
-                  subtitle: 'أضف إيجار الدار أو الفواتير، حدد التاريخ والوقت، وسيذكّرك التطبيق قبل 24 ساعة و12 ساعة وساعة',
+                  subtitle: 'أضف إيجار الدار أو الفواتير، حدد التاريخ والوقت، وسيذكّرك التطبيق قبل 24 ساعة وفي الموعد',
                   action: GoldButton(
                     label: 'إضافة مصروف',
                     icon: Icons.add_alarm_rounded,
@@ -137,6 +141,8 @@ class ExpensesScreen extends StatelessWidget {
               ],
             ],
           ),
+            ),
+          ]),
         );
       },
     );
@@ -202,19 +208,26 @@ class ExpenseCard extends StatelessWidget {
               ),
               const SizedBox(width: 8),
               Tag(e.repeat.label, color: p.blue),
+              if (!e.done && AppSettings.reminders.value.isNotEmpty) ...[
+                const SizedBox(width: 6),
+                Tooltip(
+                  triggerMode: TooltipTriggerMode.tap,
+                  showDuration: const Duration(seconds: 3),
+                  message: 'التذكير: ${AppSettings.reminders.value.map(Remind.label).join('، ')}',
+                  child: Container(
+                    padding: const EdgeInsets.all(4),
+                    decoration: BoxDecoration(color: p.gold.withValues(alpha: 0.12), shape: BoxShape.circle),
+                    child: Icon(Icons.notifications_active_rounded, size: 14, color: p.gold),
+                  ),
+                ),
+              ],
             ]),
             const SizedBox(height: 5),
             Text(
               e.done ? 'تم الدفع' : '${fmtDateShort(e.due)} · ${fmtTime(e.due)}',
               style: TextStyle(color: p.dim, fontSize: 12.5),
             ),
-            if (!compact && !e.done && AppSettings.reminders.value.isNotEmpty) ...[
-              const SizedBox(height: 6),
-              Wrap(
-                spacing: 6,
-                children: AppSettings.reminders.value.map((m) => Tag(Remind.short(m), color: p.faint, icon: Icons.alarm_rounded)).toList(),
-              ),
-            ],
+
           ]),
         ),
         Column(crossAxisAlignment: CrossAxisAlignment.end, children: [

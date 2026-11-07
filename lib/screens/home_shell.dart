@@ -2,10 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../core/app_lock.dart';
 import '../core/notifications.dart';
 import '../core/settings.dart';
 import '../ui/theme.dart';
 import '../ui/widgets.dart';
+import 'app_lock_screen.dart';
 import 'dashboard_screen.dart';
 import 'debts_screen.dart';
 import 'expense_form.dart';
@@ -19,12 +21,38 @@ class HomeShell extends StatefulWidget {
   State<HomeShell> createState() => _HomeShellState();
 }
 
-class _HomeShellState extends State<HomeShell> {
+class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
   int _tab = 0;
+  DateTime? _pausedAt;
+  bool _locking = false;
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  /// Ask for the PIN / biometrics again after the app was away for a while.
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.paused) {
+      _pausedAt ??= DateTime.now();
+    } else if (state == AppLifecycleState.resumed) {
+      final away = _pausedAt == null ? Duration.zero : DateTime.now().difference(_pausedAt!);
+      _pausedAt = null;
+      if (AppLock.enabled.value && !_locking && away > const Duration(seconds: 30)) {
+        _locking = true;
+        Navigator.of(context, rootNavigator: true)
+            .push(MaterialPageRoute(fullscreenDialog: true, builder: (_) => const AppLockScreen()))
+            .whenComplete(() => _locking = false);
+      }
+    }
+  }
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     WidgetsBinding.instance.addPostFrameCallback((_) => _askName());
   }
 
@@ -88,17 +116,6 @@ class _HomeShellState extends State<HomeShell> {
           child: Column(mainAxisSize: MainAxisSize.min, children: [
             const SheetHeader('إضافة سريعة'),
             _QuickTile(
-              icon: Icons.person_add_alt_1_rounded,
-              color: p.blue,
-              title: 'شخص جديد',
-              subtitle: 'أضف اسم ورقم شخص جديد',
-              onTap: () {
-                Navigator.pop(c);
-                addPersonFlow(context);
-              },
-            ),
-            const SizedBox(height: 12),
-            _QuickTile(
               icon: Icons.request_quote_rounded,
               color: p.green,
               title: 'دين جديد',
@@ -106,6 +123,17 @@ class _HomeShellState extends State<HomeShell> {
               onTap: () {
                 Navigator.pop(c);
                 newDebtFlow(context);
+              },
+            ),
+            const SizedBox(height: 12),
+            _QuickTile(
+              icon: Icons.person_add_alt_1_rounded,
+              color: p.blue,
+              title: 'شخص جديد',
+              subtitle: 'أضف اسم ورقم شخص جديد',
+              onTap: () {
+                Navigator.pop(c);
+                addPersonFlow(context);
               },
             ),
             const SizedBox(height: 12),

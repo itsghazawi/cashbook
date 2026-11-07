@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../core/app_lock.dart';
 import '../core/backup.dart';
 import '../core/format.dart';
 import '../core/license.dart';
@@ -14,6 +15,7 @@ import '../core/store.dart';
 import '../main.dart';
 import '../ui/theme.dart';
 import '../ui/widgets.dart';
+import 'app_lock_screen.dart';
 
 /// Asks once for the owner's name shown on PDF statements.
 Future<String?> ensureOwnerName(BuildContext context, {bool force = false}) async {
@@ -167,15 +169,21 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Widget build(BuildContext context) {
     final p = Pal.of(context);
     return ListenableBuilder(
-      listenable: Listenable.merge([BackupService.I, AppStore.I, themeMode, AppSettings.ownerName, AppSettings.reminders]),
+      listenable: Listenable.merge([AppLock.enabled, AppLock.biometric, BackupService.I, AppStore.I, themeMode, AppSettings.ownerName, AppSettings.reminders]),
       builder: (context, _) {
         final b = BackupService.I;
         return SafeArea(
           bottom: false,
+          child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(18, 14, 18, 0),
+              child: Text('الإعدادات',
+                  style: TextStyle(fontFamily: kHead, fontWeight: FontWeight.w800, fontSize: 26, color: p.text)),
+            ),
+            Expanded(
           child: ListView(
-            padding: const EdgeInsets.fromLTRB(18, 14, 18, 120),
+            padding: EdgeInsets.fromLTRB(18, 0, 18, navClearance(context) + 10),
             children: [
-              Text('الإعدادات', style: TextStyle(fontFamily: kHead, fontWeight: FontWeight.w800, fontSize: 26, color: p.text)),
               const SectionHeader('عام'),
               _Group(children: [
                 _Item(
@@ -196,32 +204,135 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     value: themeMode.value,
                     onChanged: setTheme,
                     items: const [
+                      (ThemeMode.system, 'تلقائي', null),
                       (ThemeMode.dark, 'داكن', null),
                       (ThemeMode.light, 'فاتح', null),
-                      (ThemeMode.system, 'تلقائي', null),
                     ],
                   ),
                 ),
               ]),
-              const SectionHeader('النسخ الاحتياطي على Google Drive'),
+              const SectionHeader('قفل التطبيق'),
+              _Group(children: [
+                _SwitchItem(
+                  icon: Icons.lock_rounded,
+                  title: 'قفل بالرمز السري',
+                  subtitle: 'يطلب رمزاً من 4 أرقام عند فتح التطبيق',
+                  value: AppLock.enabled.value,
+                  onChanged: (v) async {
+                    if (v) {
+                      await Navigator.push<bool>(
+                          context, MaterialPageRoute(builder: (_) => const AppLockScreen(setMode: true)));
+                    } else {
+                      await AppLock.disable();
+                    }
+                  },
+                ),
+                if (AppLock.enabled.value) ...[
+                  _SwitchItem(
+                    icon: Platform.isIOS ? Icons.face_rounded : Icons.fingerprint_rounded,
+                    title: 'الفتح بـ${AppLock.bioName}',
+                    subtitle: Platform.isIOS ? 'افتح التطبيق بوجهك بدل الرمز' : 'افتح التطبيق ببصمة إصبعك بدل الرمز',
+                    value: AppLock.biometric.value,
+                    onChanged: (v) async {
+                      if (v) {
+                        if (!await AppLock.bioAvailable()) {
+                          if (context.mounted) {
+                            toast(context, 'فعّل ${AppLock.bioName} من إعدادات الهاتف أولاً', error: true);
+                          }
+                          return;
+                        }
+                        if (!await AppLock.bioUnlock(reason: 'تأكيد تفعيل ${AppLock.bioName}')) return;
+                      }
+                      await AppLock.setBiometric(v);
+                    },
+                  ),
+                  _Item(
+                    icon: Icons.password_rounded,
+                    title: 'تغيير الرمز السري',
+                    value: 'أدخل الرمز الجديد مباشرة',
+                    onTap: () async {
+                      final ok = await Navigator.push<bool>(
+                          context, MaterialPageRoute(builder: (_) => const AppLockScreen(setMode: true)));
+                      if (ok == true && context.mounted) toast(context, 'تم تغيير الرمز السري ✓');
+                    },
+                  ),
+                ],
+              ]),
+              const SectionHeader('النسخة اليومية على الجهاز'),
+              _Group(children: [
+                _Item(
+                  icon: Icons.schedule_rounded,
+                  title: 'نسخة تلقائية كل يوم الساعة 12 بالليل',
+                  value: b.lastDaily == null ? 'لم تُؤخذ أي نسخة بعد' : 'آخر نسخة: ${fmtDateTime(b.lastDaily!)}',
+                  valueColor: b.lastDaily == null ? p.faint : p.green,
+                ),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(14, 4, 14, 12),
+                  child: Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: p.gold.withValues(alpha: 0.07),
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(color: p.gold.withValues(alpha: 0.22)),
+                    ),
+                    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      Row(children: [
+                        Icon(Icons.folder_rounded, size: 16, color: p.gold),
+                        const SizedBox(width: 6),
+                        Text('مسار النسخة', style: TextStyle(color: p.gold, fontWeight: FontWeight.w600, fontSize: 12.5)),
+                      ]),
+                      const SizedBox(height: 6),
+                      Text(b.dailyPlace, style: TextStyle(color: p.text, fontSize: 12.5, height: 1.5)),
+                      if (b.dailyPath != null) ...[
+                        const SizedBox(height: 4),
+                        SelectableText(b.dailyPath!,
+                            textDirection: TextDirection.ltr, style: TextStyle(color: p.faint, fontSize: 11)),
+                      ],
+                    ]),
+                  ),
+                ),
+                _Item(
+                  icon: Icons.backup_rounded,
+                  title: 'خذ نسخة الآن',
+                  value: 'تحديث ملف النسخة اليومية فوراً',
+                  onTap: () async {
+                    final ok = await b.writeDaily();
+                    if (context.mounted) toast(context, ok ? 'تم حفظ النسخة ✓' : 'تعذّر الحفظ', error: !ok);
+                  },
+                ),
+                _Item(
+                  icon: Icons.settings_backup_restore_rounded,
+                  title: 'استعادة من النسخة اليومية',
+                  value: 'ترجيع البيانات من ملف النسخة اليومية',
+                  onTap: () async {
+                    if (!await confirm(context,
+                        title: 'استعادة النسخة اليومية؟', message: 'ستُستبدل البيانات الحالية بمحتوى النسخة.', ok: 'متابعة')) {
+                      return;
+                    }
+                    final err = await b.restoreDaily();
+                    if (context.mounted) toast(context, err ?? 'تمت الاستعادة بنجاح ✓', error: err != null);
+                  },
+                ),
+              ]),
+              const SectionHeader('Google Drive'),
               _Group(children: [
                 _Item(
                   icon: Icons.add_to_drive_rounded,
                   title: 'نسخ إلى Google Drive',
-                  value: 'اختر Google Drive من نافذة الحفظ واحفظ النسخة',
+                  value: 'من القائمة اختر تطبيق Drive واحفظ الملف',
                   onTap: () async {
                     try {
-                      final ok = await b.saveToDevice(title: 'اختر Google Drive لحفظ النسخة');
-                      if (ok && context.mounted) toast(context, 'تم حفظ النسخة ✓');
+                      await b.shareToDrive();
                     } catch (_) {
-                      if (context.mounted) toast(context, 'تعذّر الحفظ', error: true);
+                      if (context.mounted) toast(context, 'تعذّر فتح المشاركة', error: true);
                     }
                   },
                 ),
                 _Item(
                   icon: Icons.cloud_download_rounded,
-                  title: 'استعادة من Google Drive',
-                  value: 'اختر ملف النسخة من Google Drive',
+                  title: 'استيراد من Google Drive',
+                  value: 'افتح Drive من نافذة الملفات واختر ملف النسخة',
                   onTap: () async {
                     if (!await confirm(context,
                         title: 'استعادة نسخة؟', message: 'ستُستبدل البيانات الحالية بمحتوى النسخة.', ok: 'متابعة')) {
@@ -233,7 +344,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   },
                 ),
               ]),
-              const SectionHeader('النسخ الاحتياطي على الهاتف'),
+              const SectionHeader('نسخ يدوي على الهاتف'),
               _Group(children: [
                 _Item(
                   icon: Icons.save_alt_rounded,
@@ -277,7 +388,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ]),
               const SectionHeader('التذكير بالمصاريف'),
               _Group(children: [
-                for (final m in Remind.all)
+                for (final m in AppSettings.options)
                   _SwitchItem(
                     icon: m == 0 ? Icons.notifications_active_rounded : Icons.alarm_rounded,
                     title: Remind.label(m),
@@ -317,6 +428,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
               const _AboutCard(),
             ],
           ),
+            ),
+          ]),
         );
       },
     );
@@ -361,7 +474,7 @@ class _AboutCard extends StatelessWidget {
         const SizedBox(height: 12),
         const Text('كاش بوك',
             style: TextStyle(fontFamily: kHead, fontWeight: FontWeight.w800, fontSize: 22, color: Colors.white)),
-        Text('الإصدار 1.0.0', style: TextStyle(color: Colors.white.withValues(alpha: 0.6), fontSize: 12)),
+        Text('الإصدار $appVersion', style: TextStyle(color: Colors.white.withValues(alpha: 0.6), fontSize: 12)),
         const SizedBox(height: 14),
         Container(height: 1, color: Colors.white.withValues(alpha: 0.1)),
         const SizedBox(height: 14),

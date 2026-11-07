@@ -29,7 +29,7 @@ class _LockScreenState extends State<LockScreen> {
   }
 
   Future<void> _whatsapp() async {
-    final msg = 'مرحباً أستاذ أيهم 👋\nأرغب بتفعيل تطبيق كاش بوك.\n\nكود الجهاز:\n$_code';
+    final msg = _code;
     final uri = Uri.parse('https://wa.me/${License.devWhatsApp}?text=${Uri.encodeComponent(msg)}');
     if (!await launchUrl(uri, mode: LaunchMode.externalApplication)) {
       if (mounted) toast(context, 'تعذّر فتح واتساب', error: true);
@@ -100,7 +100,7 @@ class _LockScreenState extends State<LockScreen> {
                 child: Surface(
                   padding: const EdgeInsets.all(20),
                   child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-                    _Step(n: '١', text: 'انسخ كود جهازك أو أرسله مباشرة عبر واتساب'),
+                    _Step(n: '١', text: 'انسخ كود جهازك وأرسله عبر واتساب'),
                     const SizedBox(height: 16),
                     Container(
                       padding: const EdgeInsets.symmetric(vertical: 18, horizontal: 12),

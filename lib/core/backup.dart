@@ -5,7 +5,7 @@ import 'dart:typed_data';
 
 import 'package:extension_google_sign_in_as_googleapis_auth/extension_google_sign_in_as_googleapis_auth.dart';
 import 'package:file_picker/file_picker.dart';
-import 'package:flutter/foundation.dart';
+import 'package:flutter/widgets.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:googleapis/drive/v3.dart' as drive;
 import 'package:path_provider/path_provider.dart';
@@ -26,7 +26,7 @@ class DriveFile {
   DriveFile(this.id, this.name, this.modified, this.size);
 }
 
-class BackupService extends ChangeNotifier {
+class BackupService extends ChangeNotifier with WidgetsBindingObserver {
   BackupService._();
   static final BackupService I = BackupService._();
 
@@ -51,6 +51,118 @@ class BackupService extends ChangeNotifier {
     lastDriveBackup = t == null ? null : DateTime.tryParse(t);
     AppStore.I.onDataChanged = _scheduleAuto;
     if (driveConnected) unawaited(_maybeDailyBackup());
+    await _initDaily();
+  }
+
+  // ------------------------------------------------------------ daily file
+  /// One backup file on the phone, refreshed every day at 12 midnight.
+  static const dailyFileName = 'CashBook-Backup.json';
+  String? dailyPath;
+  DateTime? lastDaily;
+  Timer? _midnight;
+  bool _observing = false;
+
+  Future<void> _initDaily() async {
+    final p = await SharedPreferences.getInstance();
+    dailyPath = p.getString('daily_path');
+    final t = p.getString('daily_last');
+    lastDaily = t == null ? null : DateTime.tryParse(t);
+    if (!_observing) {
+      WidgetsBinding.instance.addObserver(this);
+      _observing = true;
+    }
+    await _dailyIfDue();
+    _armMidnight();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      unawaited(_dailyIfDue());
+      _armMidnight();
+    }
+  }
+
+  void _armMidnight() {
+    _midnight?.cancel();
+    final n = DateTime.now();
+    final next = DateTime(n.year, n.month, n.day + 1);
+    _midnight = Timer(next.difference(n) + const Duration(seconds: 2), () async {
+      await writeDaily();
+      _armMidnight();
+    });
+  }
+
+  /// If the last daily copy was taken before today's midnight, take it now.
+  Future<void> _dailyIfDue() async {
+    final n = DateTime.now();
+    final today = DateTime(n.year, n.month, n.day);
+    final l = lastDaily;
+    if (l == null || l.isBefore(today) || dailyPath == null || !File(dailyPath!).existsSync()) {
+      await writeDaily();
+    }
+  }
+
+  Future<List<Directory>> _dailyDirs() async {
+    final out = <Directory>[];
+    if (Platform.isAndroid) {
+      out.add(Directory('/storage/emulated/0/Download/CashBook'));
+      final ext = await getExternalStorageDirectory();
+      if (ext != null) out.add(Directory('${ext.path}/CashBook'));
+    }
+    final docs = await getApplicationDocumentsDirectory();
+    out.add(Directory('${docs.path}/CashBook-Backup'));
+    return out;
+  }
+
+  /// Writes the single daily backup file. Returns true on success.
+  Future<bool> writeDaily() async {
+    final data = AppStore.I.exportBackup();
+    for (final d in await _dailyDirs()) {
+      try {
+        if (!await d.exists()) await d.create(recursive: true);
+        final f = File('${d.path}/$dailyFileName');
+        await f.writeAsString(data, flush: true);
+        dailyPath = f.path;
+        lastDaily = DateTime.now();
+        final p = await SharedPreferences.getInstance();
+        await p.setString('daily_path', dailyPath!);
+        await p.setString('daily_last', lastDaily!.toIso8601String());
+        notifyListeners();
+        return true;
+      } catch (_) {
+        // try the next place
+      }
+    }
+    return false;
+  }
+
+  /// Friendly description of where the daily file lives.
+  String get dailyPlace {
+    final path = dailyPath;
+    if (path == null) return 'لم تُنشأ بعد';
+    if (Platform.isIOS) return 'تطبيق الملفات ← على الـ iPhone ← كاش بوك ← CashBook-Backup';
+    if (path.startsWith('/storage/emulated/0/Download/')) return 'مدير الملفات ← التنزيلات (Download) ← CashBook';
+    return 'مدير الملفات ← Android/data/com.alghazawi.cashbook/files/CashBook';
+  }
+
+  /// Returns null on success or an error message.
+  Future<String?> restoreDaily() async {
+    final path = dailyPath;
+    if (path == null || !File(path).existsSync()) return 'لا توجد نسخة يومية بعد';
+    return AppStore.I.importBackup(await File(path).readAsString());
+  }
+
+  /// Sends the backup file to Google Drive through the share sheet (choose Drive).
+  Future<void> shareToDrive() async {
+    final dir = await getTemporaryDirectory();
+    final f = File('${dir.path}/${_fileName()}');
+    await f.writeAsString(AppStore.I.exportBackup());
+    await SharePlus.instance.share(ShareParams(
+      files: [XFile(f.path, mimeType: 'application/json')],
+      title: 'اختر Google Drive لحفظ النسخة',
+      subject: 'نسخة احتياطية - كاش بوك',
+    ));
   }
 
   // ------------------------------------------------------------ local files

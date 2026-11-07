@@ -11,13 +11,16 @@ class AppSettings {
   static final ownerName = ValueNotifier<String>('');
 
   /// Reminder offsets (minutes before due) applied to every expense.
-  static final reminders = ValueNotifier<List<int>>([Remind.day, Remind.half, Remind.hour, Remind.atTime]);
+  static final reminders = ValueNotifier<List<int>>([Remind.day, Remind.atTime]);
+
+  /// The only reminder offsets offered: 24 hours before, and at the due time.
+  static const options = [Remind.day, Remind.atTime];
 
   static Future<void> load() async {
     final p = await SharedPreferences.getInstance();
     ownerName.value = p.getString('owner_name') ?? '';
     final r = p.getStringList('reminders');
-    if (r != null) reminders.value = r.map(int.parse).toList();
+    if (r != null) reminders.value = r.map(int.parse).where(options.contains).toList();
   }
 
   static Future<void> setOwnerName(String v) async {
@@ -29,7 +32,7 @@ class AppSettings {
   static Future<void> setReminder(int minutes, bool on) async {
     final set = {...reminders.value};
     on ? set.add(minutes) : set.remove(minutes);
-    reminders.value = Remind.all.where(set.contains).toList();
+    reminders.value = options.where(set.contains).toList();
     final p = await SharedPreferences.getInstance();
     await p.setStringList('reminders', reminders.value.map((e) => '$e').toList());
   }

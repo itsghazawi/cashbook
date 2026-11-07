@@ -10,6 +10,9 @@ import 'person_screen.dart';
 
 enum _Filter { all, me, onMe }
 
+/// Set to 1 (لي) or 2 (علي) before switching to the debts tab to open it pre-filtered.
+final debtsFilterRequest = ValueNotifier<int>(0);
+
 class DebtsScreen extends StatefulWidget {
   final bool active;
   const DebtsScreen({super.key, this.active = true});
@@ -21,6 +24,20 @@ class _DebtsScreenState extends State<DebtsScreen> {
   _Filter _f = _Filter.all;
   String _q = '';
   final _search = TextEditingController();
+
+  @override
+  void initState() {
+    super.initState();
+    debtsFilterRequest.addListener(_applyRequest);
+    _applyRequest();
+  }
+
+  void _applyRequest() {
+    final r = debtsFilterRequest.value;
+    if (r == 0) return;
+    setState(() => _f = r == 1 ? _Filter.me : _Filter.onMe);
+    debtsFilterRequest.value = 0;
+  }
 
   @override
   void didUpdateWidget(covariant DebtsScreen old) {
@@ -35,6 +52,7 @@ class _DebtsScreenState extends State<DebtsScreen> {
 
   @override
   void dispose() {
+    debtsFilterRequest.removeListener(_applyRequest);
     _search.dispose();
     super.dispose();
   }
@@ -64,22 +82,26 @@ class _DebtsScreenState extends State<DebtsScreen> {
 
         return SafeArea(
           bottom: false,
+          child: Column(children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(18, 14, 18, 10),
+              child: Row(children: [
+                Expanded(
+                  child: Text('الديون',
+                      style: TextStyle(fontFamily: kHead, fontWeight: FontWeight.w800, fontSize: 26, color: p.text)),
+                ),
+                IconButton.filledTonal(
+                  onPressed: () => addPersonFlow(context),
+                  icon: const Icon(Icons.person_add_alt_1_rounded),
+                  style: IconButton.styleFrom(backgroundColor: p.gold.withValues(alpha: 0.15), foregroundColor: p.gold),
+                ),
+              ]),
+            ),
+            Expanded(
           child: CustomScrollView(slivers: [
             SliverPadding(
-              padding: const EdgeInsets.fromLTRB(18, 14, 18, 0),
+              padding: const EdgeInsets.fromLTRB(18, 4, 18, 0),
               sliver: SliverList.list(children: [
-                Row(children: [
-                  Expanded(
-                    child: Text('الديون',
-                        style: TextStyle(fontFamily: kHead, fontWeight: FontWeight.w800, fontSize: 26, color: p.text)),
-                  ),
-                  IconButton.filledTonal(
-                    onPressed: () => addPersonFlow(context),
-                    icon: const Icon(Icons.person_add_alt_1_rounded),
-                    style: IconButton.styleFrom(backgroundColor: p.gold.withValues(alpha: 0.15), foregroundColor: p.gold),
-                  ),
-                ]),
-                const SizedBox(height: 14),
                 Row(children: [
                   Expanded(child: _SumBox(label: 'لي', color: p.green, usd: t.meUsd, syp: t.meSyp)),
                   const SizedBox(width: 10),
@@ -147,7 +169,7 @@ class _DebtsScreenState extends State<DebtsScreen> {
               )
             else
               SliverPadding(
-                padding: const EdgeInsets.fromLTRB(18, 0, 18, 120),
+                padding: EdgeInsets.fromLTRB(18, 0, 18, navClearance(context)),
                 sliver: SliverList.separated(
                   itemCount: rows.length,
                   separatorBuilder: (_, _) => const SizedBox(height: 10),
@@ -155,6 +177,8 @@ class _DebtsScreenState extends State<DebtsScreen> {
                       FadeIn(index: i, child: PersonTile(person: rows[i].$1, bal: rows[i].$2)),
                 ),
               ),
+          ]),
+            ),
           ]),
         );
       },

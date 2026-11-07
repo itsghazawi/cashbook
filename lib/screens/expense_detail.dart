@@ -3,7 +3,6 @@ import 'package:flutter/services.dart';
 
 import '../core/format.dart';
 import '../core/models.dart';
-import '../core/settings.dart';
 import '../core/store.dart';
 import '../ui/theme.dart';
 import '../ui/widgets.dart';
@@ -38,7 +37,7 @@ class _ExpenseDetail extends StatelessWidget {
           maxChildSize: 0.95,
           builder: (context, ctrl) => ListView(
             controller: ctrl,
-            padding: const EdgeInsets.fromLTRB(20, 0, 20, 30),
+            padding: EdgeInsets.fromLTRB(20, 0, 20, 30 + bottomGap(context)),
             children: [
               const SheetHeader('تفاصيل المصروف'),
               Center(
@@ -68,8 +67,6 @@ class _ExpenseDetail extends StatelessWidget {
                     _Row(Icons.hourglass_bottom_rounded, 'المتبقي', e.overdue ? 'متأخر' : relative(e.due),
                         color: e.overdue ? p.rose : null),
                   _Row(Icons.repeat_rounded, 'التكرار', e.repeat.label),
-                  _Row(Icons.alarm_rounded, 'التذكير',
-                      AppSettings.reminders.value.isEmpty ? 'متوقف' : AppSettings.reminders.value.map(Remind.label).join('، ')),
                   if (e.note.isNotEmpty) _Row(Icons.notes_rounded, 'ملاحظة', e.note),
                 ]),
               ),
@@ -91,8 +88,11 @@ class _ExpenseDetail extends StatelessWidget {
                     );
                     if (!ok) return;
                     HapticFeedback.mediumImpact();
+                    final nav = Navigator.of(context);
+                    final root = nav.context;
                     await AppStore.I.markPaid(e);
-                    if (context.mounted) toast(context, 'تم تسجيل الدفعة ✓');
+                    nav.pop();
+                    if (root.mounted) await showDoneTick(root, 'تم الدفع');
                   },
                 ),
               const SizedBox(height: 10),

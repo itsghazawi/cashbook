@@ -4,6 +4,26 @@ import 'package:flutter/services.dart';
 import '../core/format.dart';
 import 'theme.dart';
 
+/// No stretch / bounce when pulling past the top: headers stay put.
+class FixedScrollBehavior extends MaterialScrollBehavior {
+  const FixedScrollBehavior();
+  @override
+  ScrollPhysics getScrollPhysics(BuildContext context) => const ClampingScrollPhysics();
+  @override
+  Widget buildOverscrollIndicator(BuildContext context, Widget child, ScrollableDetails details) => child;
+}
+
+/// Space a bottom sheet / page needs so nothing sits under the Android
+/// navigation buttons (or the keyboard).
+double bottomGap(BuildContext context) {
+  final m = MediaQuery.of(context);
+  final a = m.viewInsets.bottom, b = m.viewPadding.bottom;
+  return a > b ? a : b;
+}
+
+/// Bottom padding for tab pages so the last item clears the floating nav bar.
+double navClearance(BuildContext context) => 118 + MediaQuery.of(context).viewPadding.bottom;
+
 /// Page background with a soft gold/emerald glow.
 class AppBackground extends StatelessWidget {
   final Widget child;
@@ -388,8 +408,12 @@ class MoneyText extends StatelessWidget {
       child: Text.rich(
         TextSpan(children: [
           TextSpan(text: n, style: TextStyle(fontFamily: kHead, fontWeight: weight, fontSize: size, color: c)),
+          WidgetSpan(
+              alignment: PlaceholderAlignment.baseline,
+              baseline: TextBaseline.alphabetic,
+              child: SizedBox(width: size * 0.28)),
           TextSpan(
-              text: ' $sym',
+              text: sym,
               style: TextStyle(fontFamily: kBody, fontWeight: FontWeight.w500, fontSize: size * 0.58, color: c.withValues(alpha: 0.75))),
         ]),
         maxLines: 1,
@@ -506,4 +530,57 @@ class Segmented<T> extends StatelessWidget {
       ),
     );
   }
+}
+
+/// Big animated ✔ that pops in the middle of the screen, then fades away.
+Future<void> showDoneTick(BuildContext context, String label) async {
+  final p = Pal.of(context);
+  final nav = Navigator.of(context, rootNavigator: true);
+  var open = true;
+  Future.delayed(const Duration(milliseconds: 1300), () {
+    if (open && nav.mounted) nav.pop();
+  });
+  await showGeneralDialog(
+    context: context,
+    barrierDismissible: true,
+    barrierLabel: 'done',
+    barrierColor: Colors.black.withValues(alpha: 0.35),
+    transitionDuration: const Duration(milliseconds: 280),
+    pageBuilder: (_, _, _) => Center(
+      child: Material(
+        color: Colors.transparent,
+        child: Container(
+          width: 170,
+          padding: const EdgeInsets.symmetric(vertical: 26, horizontal: 18),
+          decoration: BoxDecoration(
+            color: p.bg2,
+            borderRadius: BorderRadius.circular(28),
+            border: Border.all(color: p.green.withValues(alpha: 0.4)),
+            boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.3), blurRadius: 30)],
+          ),
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            TweenAnimationBuilder<double>(
+              tween: Tween(begin: 0, end: 1),
+              duration: const Duration(milliseconds: 450),
+              curve: Curves.easeOutBack,
+              builder: (_, v, child) => Transform.scale(scale: v, child: child),
+              child: Container(
+                width: 74,
+                height: 74,
+                decoration: BoxDecoration(shape: BoxShape.circle, color: p.green),
+                child: const Icon(Icons.check_rounded, color: Colors.white, size: 46),
+              ),
+            ),
+            const SizedBox(height: 14),
+            Text(label, style: TextStyle(fontFamily: kHead, fontWeight: FontWeight.w700, fontSize: 17, color: p.text)),
+          ]),
+        ),
+      ),
+    ),
+    transitionBuilder: (_, a, _, child) => FadeTransition(
+      opacity: a,
+      child: ScaleTransition(scale: Tween(begin: 0.9, end: 1.0).animate(a), child: child),
+    ),
+  );
+  open = false;
 }

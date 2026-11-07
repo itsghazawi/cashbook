@@ -36,10 +36,10 @@ class DashboardScreen extends StatelessWidget {
 
         return SafeArea(
           bottom: false,
-          child: ListView(
-            padding: const EdgeInsets.fromLTRB(18, 14, 18, 120),
-            children: [
-              FadeIn(
+          child: Column(children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(18, 14, 18, 8),
+              child: FadeIn(
                 child: Row(children: [
                   const BrandMark(size: 44),
                   const SizedBox(width: 12),
@@ -56,11 +56,12 @@ class DashboardScreen extends StatelessWidget {
                   ]),
                 ]),
               ),
-              const SizedBox(height: 20),
-              FadeIn(
-                index: 1,
-                child: GestureDetector(onTap: () => _showBreakdown(context, t), child: _HeroCard(t: t)),
-              ),
+            ),
+            Expanded(
+          child: ListView(
+            padding: EdgeInsets.fromLTRB(18, 12, 18, navClearance(context)),
+            children: [
+              FadeIn(index: 1, child: _HeroCard(t: t, totalUsd: s.netTotalUsd())),
               const SizedBox(height: 14),
               FadeIn(
                 index: 2,
@@ -72,7 +73,10 @@ class DashboardScreen extends StatelessWidget {
                       color: p.green,
                       usd: t.meUsd,
                       syp: t.meSyp,
-                      onTap: () => onGo(1),
+                      onTap: () {
+                        debtsFilterRequest.value = 1;
+                        onGo(1);
+                      },
                     ),
                   ),
                   const SizedBox(width: 12),
@@ -83,7 +87,10 @@ class DashboardScreen extends StatelessWidget {
                       color: p.rose,
                       usd: t.onMeUsd,
                       syp: t.onMeSyp,
-                      onTap: () => onGo(1),
+                      onTap: () {
+                        debtsFilterRequest.value = 2;
+                        onGo(1);
+                      },
                     ),
                   ),
                 ]),
@@ -136,7 +143,7 @@ class DashboardScreen extends StatelessWidget {
                         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                           Text('التزاماتك الشهرية تقريباً', style: TextStyle(color: p.dim, fontSize: 12.5)),
                           const SizedBox(height: 4),
-                          Wrap(spacing: 14, children: [
+                          Wrap(spacing: 14, crossAxisAlignment: WrapCrossAlignment.end, children: [
                             if (load.usd > 0) MoneyText(load.usd, Cur.usd, size: 17),
                             if (load.syp > 0) MoneyText(load.syp, Cur.syp, size: 17),
                           ]),
@@ -160,57 +167,10 @@ class DashboardScreen extends StatelessWidget {
               ),
             ],
           ),
+            ),
+          ]),
         );
       },
-    );
-  }
-
-  void _showBreakdown(BuildContext context, ({double meUsd, double meSyp, double onMeUsd, double onMeSyp}) t) {
-    final p = Pal.of(context);
-    Widget block(String cur, double me, double onMe) {
-      final net = me - onMe;
-      final nc = net.abs() < 0.005 ? p.dim : (net > 0 ? p.green : p.rose);
-      Widget row(String k, double v, Color c) => Padding(
-            padding: const EdgeInsets.symmetric(vertical: 6),
-            child: Row(children: [
-              Text(k, style: TextStyle(color: p.dim, fontWeight: FontWeight.w500)),
-              const Spacer(),
-              MoneyText(v, cur, size: 18, color: c),
-            ]),
-          );
-      return Surface(
-        child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-          Text(cur == Cur.usd ? 'بالدولار' : 'بالليرة السورية',
-              style: TextStyle(fontFamily: kHead, fontWeight: FontWeight.w700, color: p.gold)),
-          const SizedBox(height: 6),
-          row('لك (لي عند الناس)', me, p.green),
-          row('عليك (علي للناس)', onMe, p.rose),
-          Divider(color: p.line, height: 18),
-          Row(children: [
-            Text('صافي الحساب', style: TextStyle(fontFamily: kHead, fontWeight: FontWeight.w700, color: p.text)),
-            const SizedBox(width: 8),
-            if (net.abs() >= 0.005) Tag(net > 0 ? 'لك' : 'عليك', color: nc),
-            const Spacer(),
-            MoneyText(net, cur, size: 22, color: nc, weight: FontWeight.w800),
-          ]),
-        ]),
-      );
-    }
-
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      builder: (c) => SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
-          child: Column(mainAxisSize: MainAxisSize.min, children: [
-            const SheetHeader('تفاصيل الحساب'),
-            block(Cur.usd, t.meUsd, t.onMeUsd),
-            const SizedBox(height: 12),
-            block(Cur.syp, t.meSyp, t.onMeSyp),
-          ]),
-        ),
-      ),
     );
   }
 
@@ -219,7 +179,8 @@ class DashboardScreen extends StatelessWidget {
 
 class _HeroCard extends StatelessWidget {
   final ({double meUsd, double meSyp, double onMeUsd, double onMeSyp}) t;
-  const _HeroCard({required this.t});
+  final double? totalUsd;
+  const _HeroCard({required this.t, this.totalUsd});
 
   @override
   Widget build(BuildContext context) {
@@ -286,6 +247,31 @@ class _HeroCard extends StatelessWidget {
             Container(height: 1, color: Colors.white.withValues(alpha: 0.08)),
             const SizedBox(height: 8),
             line(netSyp, Cur.syp),
+            if (totalUsd != null && netSyp.abs() >= 0.5) ...[
+              const SizedBox(height: 12),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                decoration: BoxDecoration(
+                  color: Colors.black.withValues(alpha: 0.18),
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: const Color(0xFFDDB872).withValues(alpha: 0.3)),
+                ),
+                child: Row(children: [
+                  Text('الصافي الكلي بالدولار',
+                      style: TextStyle(color: Colors.white.withValues(alpha: 0.8), fontSize: 12.5, fontWeight: FontWeight.w600)),
+                  const Spacer(),
+                  MoneyText(totalUsd!, Cur.usd, size: 18, color: const Color(0xFFEBCB8B), weight: FontWeight.w800),
+                  if (totalUsd!.abs() >= 0.005) ...[
+                    const SizedBox(width: 6),
+                    Text(totalUsd! > 0 ? 'لك' : 'عليك',
+                        style: TextStyle(
+                            color: totalUsd! > 0 ? const Color(0xFF7CF0C5) : const Color(0xFFFF9AAA),
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700)),
+                  ],
+                ]),
+              ),
+            ],
           ]),
         ),
       ]),

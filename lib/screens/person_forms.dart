@@ -25,8 +25,9 @@ Future<(String, String)?> showPersonSheet(BuildContext context, {Person? edit, S
     isScrollControlled: true,
     builder: (c) => StatefulBuilder(
       builder: (c, setS) => Padding(
-        padding: EdgeInsets.fromLTRB(20, 0, 20, MediaQuery.of(c).viewInsets.bottom + 20),
+        padding: EdgeInsets.fromLTRB(20, 0, 20, bottomGap(c) + 20),
         child: SafeArea(
+          bottom: false,
           child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
             SheetHeader(edit == null ? 'شخص جديد' : 'تعديل البيانات'),
             TextField(
@@ -107,7 +108,7 @@ class _PersonPickerState extends State<_PersonPicker> {
       initialChildSize: 0.8,
       maxChildSize: 0.95,
       builder: (context, ctrl) => Padding(
-        padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+        padding: EdgeInsets.only(bottom: bottomGap(context)),
         child: Column(children: [
           const SheetHeader('دين جديد', subtitle: 'اختر الشخص'),
           Padding(
@@ -256,7 +257,7 @@ class _TxnSheetState extends State<_TxnSheet> {
     }
     final kc = _kind == TxnKind.gave ? p.green : p.rose;
     return Padding(
-      padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+      padding: EdgeInsets.only(bottom: bottomGap(context)),
       child: SingleChildScrollView(
         padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
         child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [

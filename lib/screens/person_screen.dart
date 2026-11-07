@@ -31,6 +31,7 @@ class PersonScreen extends StatelessWidget {
         return Scaffold(
           body: AppBackground(
             child: SafeArea(
+              bottom: false,
               child: CustomScrollView(slivers: [
                 SliverAppBar(
                   pinned: true,
@@ -112,7 +113,7 @@ class PersonScreen extends StatelessWidget {
                   )
                 else
                   SliverPadding(
-                    padding: const EdgeInsets.fromLTRB(18, 0, 18, 40),
+                    padding: EdgeInsets.fromLTRB(18, 0, 18, 40 + MediaQuery.of(context).viewPadding.bottom),
                     sliver: SliverList.separated(
                       itemCount: list.length,
                       separatorBuilder: (_, _) => const SizedBox(height: 10),
@@ -159,9 +160,8 @@ class PersonScreen extends StatelessWidget {
     final p = Pal.of(context);
     await showModalBottomSheet(
       context: context,
-      builder: (c) => SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+      builder: (c) => Padding(
+          padding: EdgeInsets.fromLTRB(20, 0, 20, 20 + bottomGap(c)),
           child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
             SheetHeader('كشف حساب ${person.name}', subtitle: 'ملف PDF بتصميم كاش بوك يوضّح ما لك وما عليك'),
             GoldButton(
@@ -198,7 +198,6 @@ class PersonScreen extends StatelessWidget {
             ],
           ]),
         ),
-      ),
     );
   }
 
@@ -324,7 +323,7 @@ class _Header extends StatelessWidget {
             child: Row(children: [
               Expanded(
                 child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  const Text('المبلغ الكلي بالدولار',
+                  const Text('الصافي بالدولار',
                       style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600, fontSize: 13)),
                   Text(
                     bal.sypAllHaveRates ? 'السوري على سعر صرف كل حركة' : 'بعض الحركات على سعر الصرف الافتراضي',

@@ -229,6 +229,17 @@ class AppStore extends ChangeNotifier {
     return (meUsd: a, meSyp: b, onMeUsd: c, onMeSyp: d);
   }
 
+  /// Net of every account in USD (SYP at each entry's rate); null if some SYP has no rate at all.
+  double? netTotalUsd() {
+    double sum = 0;
+    for (final p in people) {
+      final bal = balanceOf(p.id);
+      if (bal.syp.abs() >= 0.5 && bal.sypMissingRate) return null;
+      sum += bal.totalUsd;
+    }
+    return sum;
+  }
+
   // ---------- expenses ----------
   Expense? expense(String id) => expenses.where((e) => e.id == id).firstOrNull;
 

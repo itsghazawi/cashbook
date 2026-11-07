@@ -1,30 +1,41 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'core/app_lock.dart';
 import 'core/backup.dart';
 import 'core/license.dart';
 import 'core/notifications.dart';
 import 'core/settings.dart';
 import 'core/store.dart';
+import 'screens/app_lock_screen.dart';
 import 'screens/home_shell.dart';
 import 'screens/lock_screen.dart';
 import 'ui/theme.dart';
 import 'ui/widgets.dart';
 
-final themeMode = ValueNotifier<ThemeMode>(ThemeMode.dark);
+/// App version from pubspec (shown in Settings).
+String appVersion = '';
+
+final themeMode = ValueNotifier<ThemeMode>(ThemeMode.system);
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
   SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
   await AppSettings.load();
+  await AppLock.load();
+  try {
+    final info = await PackageInfo.fromPlatform();
+    appVersion = info.version;
+  } catch (_) {}
   final prefs = await SharedPreferences.getInstance();
   themeMode.value = switch (prefs.getString('theme')) {
     'light' => ThemeMode.light,
-    'system' => ThemeMode.system,
-    _ => ThemeMode.dark,
+    'dark' => ThemeMode.dark,
+    _ => ThemeMode.system,
   };
   runApp(const CashBookApp());
 }
@@ -62,6 +73,7 @@ class CashBookApp extends StatelessWidget {
           ),
           child: child!,
         ),
+        scrollBehavior: const FixedScrollBehavior(),
         home: const SplashScreen(),
       ),
     );
@@ -98,7 +110,14 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
     if (!mounted) return;
     Navigator.of(context).pushReplacement(PageRouteBuilder(
       transitionDuration: const Duration(milliseconds: 600),
-      pageBuilder: (_, _, _) => ok ? const HomeShell() : const LockScreen(),
+      pageBuilder: (ctx, _, _) => !ok
+          ? const LockScreen()
+          : AppLock.enabled.value
+              ? AppLockScreen(
+                  onUnlocked: () => Navigator.of(ctx).pushReplacement(
+                      MaterialPageRoute(builder: (_) => const HomeShell())),
+                )
+              : const HomeShell(),
       transitionsBuilder: (_, a, _, child) => FadeTransition(opacity: a, child: child),
     ));
   }

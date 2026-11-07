@@ -88,10 +88,10 @@ class StatementPdf {
       StmtMood.theyOweMe => 'لي عليك',
       StmtMood.iOweThem => 'لك عندي',
       StmtMood.mixed => 'رصيد الحساب',
-      StmtMood.settled => 'الحساب مسدَّد',
+      StmtMood.settled => 'الحساب مسدد',
     };
     final message = switch (mood) {
-      StmtMood.theyOweMe => 'نرجو التكرّم بمراجعة الكشف وتسديد المبلغ المستحق، مع الشكر.',
+      StmtMood.theyOweMe => 'نرجو التكرم بمراجعة الكشف وتسديد المبلغ المستحق، مع الشكر.',
       StmtMood.iOweThem => 'هذا المبلغ مستحق لكم لدينا، وسيتم تسديده بإذن الله.',
       StmtMood.mixed => 'تفاصيل الرصيد لكل عملة موضحة أدناه.',
       StmtMood.settled => 'لا يوجد أي مبلغ مستحق بين الطرفين حتى تاريخه.',
@@ -154,6 +154,19 @@ class StatementPdf {
           ),
         );
 
+    // USD part in Syrian pounds, at each entry's rate (default rate when an entry has none).
+    double usdAsSyp = 0;
+    var usdMissing = false;
+    for (final t in txns.where((t) => t.currency == Cur.usd)) {
+      final r = (t.rate != null && t.rate! > 0) ? t.rate! : AppStore.I.lastRate;
+      if (r > 0) {
+        usdAsSyp += t.signed * r;
+      } else {
+        usdMissing = true;
+      }
+    }
+    final showUsdAsSyp = !usdMissing && usdAsSyp.abs() >= 0.5;
+
     pw.Widget amountChip(double v, String cur) {
       final pos = v > 0;
       final c = pos ? _green : _rose;
@@ -175,6 +188,8 @@ class StatementPdf {
             pw.Text(fmtMoney(v.abs(), cur), style: st(18, color: c, font: f.headBold)),
             if (cur == Cur.syp && !bal.sypMissingRate && bal.sypAsUsdAtRates.abs() > 0.004)
               pw.Text('تعادل ${fmtMoney(bal.sypAsUsdAtRates.abs(), Cur.usd)}', style: st(9.5, color: _dim, font: f.bodyBold)),
+            if (cur == Cur.usd && showUsdAsSyp)
+              pw.Text('تعادل بالسوري ${fmtMoney(usdAsSyp.abs(), Cur.syp)}', style: st(9.5, color: _dim, font: f.bodyBold)),
           ]),
         ]),
       );
@@ -193,7 +208,7 @@ class StatementPdf {
           pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
             pw.Text('المبلغ الكلي بالدولار', style: st(11.5, color: PdfColors.white, font: f.bodyBold)),
             pw.SizedBox(height: 2),
-            pw.Text('الليرة السورية محسوبة على سعر الصرف المسجّل لكل حركة',
+            pw.Text('الليرة السورية محسوبة على سعر الصرف المسجل لكل حركة',
                 style: st(8, color: const PdfColor.fromInt(0xFFCFE0DA))),
           ]),
           pw.Spacer(),
@@ -267,7 +282,7 @@ class StatementPdf {
       final t = txns[i];
       final gave = t.kind == TxnKind.gave;
       final c = gave ? _green : _rose;
-      final label = gave ? 'مبلغ سُلِّم لك' : 'مبلغ استُلِم منك';
+      final label = gave ? 'مبلغ سلم لك' : 'مبلغ استلم منك';
       String eq = '—';
       if (t.rate != null && t.rate! > 0) {
         eq = t.currency == Cur.syp ? fmtMoney(t.usdValue!, Cur.usd) : fmtMoney(t.sypValue!, Cur.syp);
@@ -317,8 +332,8 @@ class StatementPdf {
             child: pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.stretch, children: [
               pw.Text(cur == Cur.usd ? 'بالدولار' : 'بالليرة السورية', style: st(10.5, font: f.bodyBold, color: _gold)),
               pw.SizedBox(height: 6),
-              _kv('مجموع ما سُلِّم لك', fmtMoney(given, cur), st(9.5, color: _dim), st(10, color: _green, font: f.bodyBold)),
-              _kv('مجموع ما استُلِم منك', fmtMoney(taken, cur), st(9.5, color: _dim), st(10, color: _rose, font: f.bodyBold)),
+              _kv('مجموع ما سلم لك', fmtMoney(given, cur), st(9.5, color: _dim), st(10, color: _green, font: f.bodyBold)),
+              _kv('مجموع ما استلم منك', fmtMoney(taken, cur), st(9.5, color: _dim), st(10, color: _rose, font: f.bodyBold)),
               pw.Divider(color: _line, height: 10),
               _kv(
                 net.abs() < 0.005 ? 'الرصيد' : (net > 0 ? 'الرصيد: لي عليك' : 'الرصيد: لك عندي'),
@@ -326,6 +341,9 @@ class StatementPdf {
                 st(10, color: c, font: f.bodyBold),
                 st(12, color: c, font: f.headBold),
               ),
+              if (cur == Cur.usd && net.abs() >= 0.005 && showUsdAsSyp)
+                _kv('تعادل بالسوري', fmtMoney(usdAsSyp.abs(), Cur.syp), st(10, color: c, font: f.bodyBold),
+                    st(11, color: c, font: f.headBold)),
               if (cur == Cur.syp && net.abs() >= 0.5 && !bal.sypMissingRate)
                 _kv('تعادل بالدولار', fmtMoney(bal.sypAsUsdAtRates.abs(), Cur.usd), st(10, color: c, font: f.bodyBold),
                     st(11, color: c, font: f.headBold)),
@@ -376,7 +394,7 @@ class StatementPdf {
           padding: const pw.EdgeInsets.fromLTRB(28, 14, 28, 0),
           child: pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.stretch, children: [
             pw.Row(children: [
-              party('إلى السيد / السيدة', person.name, person.phone),
+              party('إلى السيد / السيدة', person.name, ''),
               pw.SizedBox(width: 10),
               party('من', ownerName, ''),
             ]),
@@ -417,7 +435,7 @@ class StatementPdf {
         pw.Padding(
           padding: const pw.EdgeInsets.fromLTRB(28, 10, 28, 0),
           child: pw.Text(
-            'هذا الكشف صادر إلكترونياً للتوضيح والتذكير، ويعكس الحركات المسجلة حتى تاريخ الإصدار.',
+            'هذا الكشف صادر إلكترونيا للتوضيح والتذكير، ويعكس الحركات المسجلة حتى تاريخ الإصدار.',
             style: st(8.5, color: _faint, font: f.light),
           ),
         ),
@@ -461,7 +479,7 @@ class StatementPdf {
   }
 
   static String summaryText(Person person, Balance bal) {
-    final lines = <String>['مرحباً ${person.name} 👋'];
+    final lines = <String>['مرحبا ${person.name} 👋'];
     final parts = <String>[];
     if (bal.usd.abs() >= 0.005) {
       parts.add('${bal.usd > 0 ? 'لي عليك' : 'لك عندي'}: ${fmtMoney(bal.usd.abs(), Cur.usd)}');
@@ -470,7 +488,7 @@ class StatementPdf {
       parts.add('${bal.syp > 0 ? 'لي عليك' : 'لك عندي'}: ${fmtMoney(bal.syp.abs(), Cur.syp)}');
     }
     if (parts.isEmpty) {
-      lines.add('حسابنا مسدَّد بالكامل حتى تاريخه ✅');
+      lines.add('حسابنا مسدد بالكامل حتى تاريخه ✅');
     } else {
       lines.add('ملخص حسابنا حتى ${fmtDateNum(DateTime.now())}:');
       lines.addAll(parts.map((e) => '• $e'));

@@ -103,7 +103,7 @@ class _ExpenseFormState extends State<ExpenseForm> {
     return Scaffold(
       appBar: AppBar(title: Text(widget.edit == null ? 'مصروف دوري جديد' : 'تعديل المصروف')),
       body: ListView(
-        padding: const EdgeInsets.fromLTRB(18, 6, 18, 40),
+        padding: EdgeInsets.fromLTRB(18, 6, 18, 40 + MediaQuery.of(context).viewPadding.bottom),
         children: [
           if (widget.edit == null) ...[
             SizedBox(
@@ -200,7 +200,7 @@ class _ExpenseFormState extends State<ExpenseForm> {
             Icon(Icons.notifications_active_rounded, size: 16, color: p.faint),
             const SizedBox(width: 6),
             Expanded(
-              child: Text('التذكير حسب إعداداتك (قبل 24 ساعة، 12 ساعة، ساعة…) — تقدر تغيّرها من الإعدادات',
+              child: Text('التذكير قبل 24 ساعة وفي الموعد نفسه — تقدر تغيّره من الإعدادات',
                   style: TextStyle(color: p.faint, fontSize: 11.5, height: 1.5)),
             ),
           ]),

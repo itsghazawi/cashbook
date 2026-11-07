@@ -23,7 +23,7 @@ String fmtNum(num v, {bool decimals = true}) {
 String fmtMoney(num v, String cur, {bool signed = false}) {
   final s = fmtNum(v.abs(), decimals: cur == Cur.usd);
   final sign = signed && v < 0 ? '−' : '';
-  return cur == Cur.usd ? '$sign\$$s' : '$sign$s ل.س';
+  return cur == Cur.usd ? '$sign$s \$' : '$sign$s ل.س';
 }
 
 double? parseNum(String s) {
@@ -79,7 +79,7 @@ String dayName(DateTime d) => _days[d.weekday - 1];
 String fmtDateNum(DateTime d) => '${d.day}/${d.month}/${d.year}';
 
 String fmtDate(DateTime d) => fmtDateNum(d);
-String fmtDateShort(DateTime d) => '${d.day}/${d.month}';
+String fmtDateShort(DateTime d) => fmtDateNum(d);
 String fmtTime(DateTime d) {
   final h = d.hour % 12 == 0 ? 12 : d.hour % 12;
   final m = d.minute.toString().padLeft(2, '0');
