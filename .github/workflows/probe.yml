@@ -1,0 +1,21 @@
+name: probe
+on:
+  push:
+    branches: [probe]
+permissions:
+  contents: write
+jobs:
+  p:
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          mkdir out && cd out
+          UA="Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 Chrome/124 Mobile Safari/537.36"
+          curl -sSL -A "$UA" -o json_dam.txt -w "%{http_code}\n" "https://sp-today.com/app_api/cur_damascus.json" > codes.txt || true
+          curl -sSL -A "$UA" -o page_usd.html -w "%{http_code}\n" "https://sp-today.com/currency/us_dollar" >> codes.txt || true
+          curl -sSL -A "$UA" -o page_usd2.html -w "%{http_code}\n" "https://sp-today.com/currency/us-dollar" >> codes.txt || true
+          curl -sSL -A "$UA" -o page_dam.html -w "%{http_code}\n" "https://sp-today.com/en/currency/us_dollar/city/damascus" >> codes.txt || true
+          curl -sSL -A "$UA" -o cur.html -w "%{http_code}\n" "https://sp-today.com/currencies" >> codes.txt || true
+          cd .. && git init -q r && cp -r out/* r/ && cd r
+          git checkout -q -b probe-out && git add -A && git -c user.name=bot -c user.email=bot@x commit -qm out
+          git push -f "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}" probe-out
