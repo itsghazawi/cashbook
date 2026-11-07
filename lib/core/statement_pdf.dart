@@ -154,19 +154,6 @@ class StatementPdf {
           ),
         );
 
-    // USD part in Syrian pounds, at each entry's rate (default rate when an entry has none).
-    double usdAsSyp = 0;
-    var usdMissing = false;
-    for (final t in txns.where((t) => t.currency == Cur.usd)) {
-      final r = (t.rate != null && t.rate! > 0) ? t.rate! : AppStore.I.lastRate;
-      if (r > 0) {
-        usdAsSyp += t.signed * r;
-      } else {
-        usdMissing = true;
-      }
-    }
-    final showUsdAsSyp = !usdMissing && usdAsSyp.abs() >= 0.5;
-
     pw.Widget amountChip(double v, String cur) {
       final pos = v > 0;
       final c = pos ? _green : _rose;
@@ -186,10 +173,6 @@ class StatementPdf {
           pw.Spacer(),
           pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.end, children: [
             pw.Text(fmtMoney(v.abs(), cur), style: st(18, color: c, font: f.headBold)),
-            if (cur == Cur.syp && !bal.sypMissingRate && bal.sypAsUsdAtRates.abs() > 0.004)
-              pw.Text('تعادل ${fmtMoney(bal.sypAsUsdAtRates.abs(), Cur.usd)}', style: st(9.5, color: _dim, font: f.bodyBold)),
-            if (cur == Cur.usd && showUsdAsSyp)
-              pw.Text('تعادل بالسوري ${fmtMoney(usdAsSyp.abs(), Cur.syp)}', style: st(9.5, color: _dim, font: f.bodyBold)),
           ]),
         ]),
       );
@@ -341,12 +324,6 @@ class StatementPdf {
                 st(10, color: c, font: f.bodyBold),
                 st(12, color: c, font: f.headBold),
               ),
-              if (cur == Cur.usd && net.abs() >= 0.005 && showUsdAsSyp)
-                _kv('تعادل بالسوري', fmtMoney(usdAsSyp.abs(), Cur.syp), st(10, color: c, font: f.bodyBold),
-                    st(11, color: c, font: f.headBold)),
-              if (cur == Cur.syp && net.abs() >= 0.5 && !bal.sypMissingRate)
-                _kv('تعادل بالدولار', fmtMoney(bal.sypAsUsdAtRates.abs(), Cur.usd), st(10, color: c, font: f.bodyBold),
-                    st(11, color: c, font: f.headBold)),
             ]),
           ),
         ));

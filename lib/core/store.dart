@@ -149,12 +149,26 @@ class AppStore extends ChangeNotifier {
   VoidCallback? onDataChanged;
   void _markDirty() => onDataChanged?.call();
 
-  Future<void> setLastRate(double r) async {
+  /// When the default rate last came from sp-today.com (null = typed by hand).
+  DateTime? rateAutoAt;
+
+  /// The default rate is today's online rate (so a one-off rate typed in a debt doesn't replace it).
+  bool get autoRateFresh => rateAutoAt != null && DateTime.now().difference(rateAutoAt!) < const Duration(hours: 24);
+
+  Future<void> setLastRate(double r, {bool auto = false}) async {
     if (r <= 0) return;
     lastRate = r;
+    rateAutoAt = auto ? DateTime.now() : null;
+    final sp = await SharedPreferences.getInstance();
+    if (auto) {
+      await sp.setString('rate_auto_at', rateAutoAt!.toIso8601String());
+    } else {
+      await sp.remove('rate_auto_at');
+    }
     final p = await SharedPreferences.getInstance();
     await p.setDouble('lastRate', r);
     await _save();
+    notifyListeners();
   }
 
   // ---------- people ----------
@@ -181,12 +195,12 @@ class AppStore extends ChangeNotifier {
 
   Future<void> addTxn(Txn t) async {
     txns.add(t);
-    if (t.rate != null && t.rate! > 0) lastRate = t.rate!;
+    if (t.rate != null && t.rate! > 0 && !autoRateFresh) lastRate = t.rate!;
     await _commit();
   }
 
   Future<void> updateTxn(Txn t) async {
-    if (t.rate != null && t.rate! > 0) lastRate = t.rate!;
+    if (t.rate != null && t.rate! > 0 && !autoRateFresh) lastRate = t.rate!;
     await _commit();
   }
 

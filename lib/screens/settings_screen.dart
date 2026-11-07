@@ -6,6 +6,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../core/app_lock.dart';
 import '../core/backup.dart';
+import '../core/rate_service.dart';
 import '../core/format.dart';
 import '../core/license.dart';
 import '../core/models.dart';
@@ -90,88 +91,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
   }
 
-  Future<void> _restoreSnapshot() async {
-    final snaps = await AppStore.I.listSnapshots();
-    if (!mounted) return;
-    if (snaps.isEmpty) {
-      toast(context, 'لا توجد نسخ تلقائية بعد');
-      return;
-    }
-    final f = await showModalBottomSheet<File>(
-      context: context,
-      builder: (c) => SafeArea(
-        child: ListView(
-          shrinkWrap: true,
-          padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
-          children: [
-            const SheetHeader('النسخ التلقائية على الجهاز', subtitle: 'يحتفظ التطبيق بآخر 10 نسخ يومية تلقائياً'),
-            ...snaps.map((s) {
-              final n = s.uri.pathSegments.last.replaceAll('.json', '');
-              final dt = DateTime.tryParse(
-                  '${n.substring(0, 4)}-${n.substring(4, 6)}-${n.substring(6, 8)}T${n.substring(9, 11)}:${n.substring(11, 13)}');
-              return ListTile(
-                leading: const Icon(Icons.history_rounded),
-                title: Text(dt == null ? n : fmtDateTime(dt)),
-                onTap: () => Navigator.pop(c, s),
-              );
-            }),
-          ],
-        ),
-      ),
-    );
-    if (f == null || !mounted) return;
-    if (!await confirm(context, title: 'استعادة النسخة؟', message: 'ستُستبدل البيانات الحالية بهذه النسخة.', ok: 'استعادة')) {
-      return;
-    }
-    final err = await AppStore.I.importBackup(await f.readAsString());
-    if (mounted) toast(context, err ?? 'تمت الاستعادة بنجاح', error: err != null);
-  }
-
-  Future<void> _restoreDrive() async {
-    final b = BackupService.I;
-    try {
-      final list = await b.listDriveBackups();
-      if (!mounted) return;
-      if (list.isEmpty) {
-        toast(context, 'لا توجد نسخ على Google Drive');
-        return;
-      }
-      final f = await showModalBottomSheet<DriveFile>(
-        context: context,
-        builder: (c) => SafeArea(
-          child: ListView(
-            shrinkWrap: true,
-            padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
-            children: [
-              const SheetHeader('نسخ Google Drive'),
-              ...list.map((x) => ListTile(
-                    leading: const Icon(Icons.cloud_done_rounded),
-                    title: Text(x.modified == null ? x.name : fmtDateTime(x.modified!)),
-                    subtitle: x.size == null ? null : Text('${(x.size! / 1024).toStringAsFixed(1)} KB'),
-                    onTap: () => Navigator.pop(c, x),
-                  )),
-            ],
-          ),
-        ),
-      );
-      if (f == null || !mounted) return;
-      if (!await confirm(context, title: 'استعادة من Drive؟', message: 'ستُستبدل البيانات الحالية بهذه النسخة.', ok: 'استعادة')) {
-        return;
-      }
-      final err = await b.restoreFromDrive(f);
-      if (mounted) toast(context, err ?? 'تمت الاستعادة بنجاح', error: err != null);
-    } catch (_) {
-      if (mounted) toast(context, 'تعذّر الوصول إلى Google Drive', error: true);
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     final p = Pal.of(context);
     return ListenableBuilder(
-      listenable: Listenable.merge([AppLock.enabled, AppLock.biometric, BackupService.I, AppStore.I, themeMode, AppSettings.ownerName, AppSettings.reminders]),
+      listenable: Listenable.merge([RateService.I, AppLock.enabled, AppLock.biometric, BackupService.I, AppStore.I, themeMode, AppSettings.ownerName, AppSettings.reminders]),
       builder: (context, _) {
-        final b = BackupService.I;
         return SafeArea(
           bottom: false,
           child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
@@ -194,9 +119,26 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ),
                 _Item(
                   icon: Icons.currency_exchange_rounded,
-                  title: 'سعر صرف الدولار الافتراضي',
-                  value: AppStore.I.lastRate > 0 ? '${fmtNum(AppStore.I.lastRate)} ل.س' : 'غير محدد',
+                  title: 'سعر صرف الدولار',
+                  value: AppStore.I.lastRate <= 0
+                      ? (RateService.I.busy ? 'جارٍ جلب سعر اليوم…' : 'غير محدد — اضغط لكتابته')
+                      : AppStore.I.autoRateFresh
+                          ? '${fmtNum(AppStore.I.lastRate)} ل.س · سعر اليوم (${RateService.source}) · ${fmtTime(AppStore.I.rateAutoAt!)}'
+                          : '${fmtNum(AppStore.I.lastRate)} ل.س · مُدخل يدوياً',
+                  valueColor: AppStore.I.autoRateFresh ? p.green : null,
                   onTap: _editRate,
+                  trailing: RateService.I.busy
+                      ? SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: p.gold))
+                      : IconButton(
+                          tooltip: 'تحديث السعر الآن',
+                          icon: Icon(Icons.refresh_rounded, color: p.gold),
+                          onPressed: () async {
+                            final ok = await RateService.I.refresh();
+                            if (context.mounted) {
+                              toast(context, ok ? 'تم تحديث سعر اليوم ✓' : (RateService.I.lastError ?? 'تعذّر التحديث'), error: !ok);
+                            }
+                          },
+                        ),
                 ),
                 Padding(
                   padding: const EdgeInsets.fromLTRB(14, 10, 14, 12),
@@ -258,147 +200,27 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   ),
                 ],
               ]),
-              const SectionHeader('النسخة اليومية على الجهاز'),
+              const SectionHeader('النسخ الاحتياطي'),
               _Group(children: [
                 _Item(
-                  icon: Icons.schedule_rounded,
-                  title: 'نسخة تلقائية كل يوم الساعة 12 بالليل',
-                  value: b.lastDaily == null ? 'لم تُؤخذ أي نسخة بعد' : 'آخر نسخة: ${fmtDateTime(b.lastDaily!)}',
-                  valueColor: b.lastDaily == null ? p.faint : p.green,
-                ),
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(14, 4, 14, 12),
-                  child: Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: p.gold.withValues(alpha: 0.07),
-                      borderRadius: BorderRadius.circular(14),
-                      border: Border.all(color: p.gold.withValues(alpha: 0.22)),
-                    ),
-                    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                      Row(children: [
-                        Icon(Icons.folder_rounded, size: 16, color: p.gold),
-                        const SizedBox(width: 6),
-                        Text('مسار النسخة', style: TextStyle(color: p.gold, fontWeight: FontWeight.w600, fontSize: 12.5)),
-                      ]),
-                      const SizedBox(height: 6),
-                      Text(b.dailyPlace, style: TextStyle(color: p.text, fontSize: 12.5, height: 1.5)),
-                      if (b.dailyPath != null) ...[
-                        const SizedBox(height: 4),
-                        SelectableText(b.dailyPath!,
-                            textDirection: TextDirection.ltr, style: TextStyle(color: p.faint, fontSize: 11)),
-                      ],
-                    ]),
-                  ),
-                ),
-                _Item(
-                  icon: Icons.backup_rounded,
-                  title: 'خذ نسخة الآن',
-                  value: 'تحديث ملف النسخة اليومية فوراً',
-                  onTap: () async {
-                    final ok = await b.writeDaily();
-                    if (context.mounted) toast(context, ok ? 'تم حفظ النسخة ✓' : 'تعذّر الحفظ', error: !ok);
-                  },
-                ),
-                _Item(
-                  icon: Icons.settings_backup_restore_rounded,
-                  title: 'استعادة من النسخة اليومية',
-                  value: 'ترجيع البيانات من ملف النسخة اليومية',
-                  onTap: () async {
-                    if (!await confirm(context,
-                        title: 'استعادة النسخة اليومية؟', message: 'ستُستبدل البيانات الحالية بمحتوى النسخة.', ok: 'متابعة')) {
-                      return;
-                    }
-                    final err = await b.restoreDaily();
-                    if (context.mounted) toast(context, err ?? 'تمت الاستعادة بنجاح ✓', error: err != null);
-                  },
-                ),
-              ]),
-              const SectionHeader('Google Drive'),
-              _Group(children: [
-                _Item(
-                  icon: Icons.add_to_drive_rounded,
-                  title: 'نسخ إلى Google Drive',
-                  value: 'من القائمة اختر تطبيق Drive واحفظ الملف',
-                  onTap: () async {
-                    try {
-                      await b.shareToDrive();
-                    } catch (_) {
-                      if (context.mounted) toast(context, 'تعذّر فتح المشاركة', error: true);
-                    }
-                  },
-                ),
-                _Item(
-                  icon: Icons.cloud_download_rounded,
-                  title: 'استيراد من Google Drive',
-                  value: 'افتح Drive من نافذة الملفات واختر ملف النسخة',
-                  onTap: () async {
-                    if (!await confirm(context,
-                        title: 'استعادة نسخة؟', message: 'ستُستبدل البيانات الحالية بمحتوى النسخة.', ok: 'متابعة')) {
-                      return;
-                    }
-                    final err = await b.restoreFromDevice();
-                    if (err == '' || !context.mounted) return;
-                    toast(context, err ?? 'تمت الاستعادة بنجاح ✓', error: err != null);
-                  },
-                ),
-              ]),
-              const SectionHeader('نسخ يدوي على الهاتف'),
-              _Group(children: [
-                _Item(
-                  icon: Icons.save_alt_rounded,
-                  title: 'حفظ نسخة على الهاتف',
-                  value: 'اختر مكان الحفظ (التنزيلات مثلاً)',
-                  onTap: () async {
-                    try {
-                      final ok = await b.saveToDevice();
-                      if (ok && context.mounted) toast(context, 'تم حفظ النسخة ✓');
-                    } catch (_) {
-                      if (context.mounted) toast(context, 'تعذّر الحفظ', error: true);
-                    }
-                  },
-                ),
-                _Item(
-                  icon: Icons.ios_share_rounded,
-                  title: 'مشاركة النسخة',
-                  value: 'أرسلها لنفسك على واتساب أو تيليجرام',
-                  onTap: b.shareBackup,
-                ),
-                _Item(
-                  icon: Icons.restore_page_rounded,
-                  title: 'استعادة من ملف',
-                  value: 'اختر ملف نسخة احتياطية (.json)',
-                  onTap: () async {
-                    if (!await confirm(context,
-                        title: 'استعادة من ملف؟', message: 'ستُستبدل البيانات الحالية بمحتوى الملف.', ok: 'متابعة')) {
-                      return;
-                    }
-                    final err = await b.restoreFromDevice();
-                    if (err == '' || !context.mounted) return;
-                    toast(context, err ?? 'تمت الاستعادة بنجاح ✓', error: err != null);
-                  },
-                ),
-                _Item(
-                  icon: Icons.history_rounded,
-                  title: 'النسخ التلقائية',
-                  value: 'آخر 10 نسخ يومية محفوظة داخل التطبيق',
-                  onTap: _restoreSnapshot,
+                  icon: Icons.cloud_sync_rounded,
+                  title: 'النسخ الاحتياطي والاستعادة',
+                  value: BackupService.I.lastDaily == null
+                      ? 'النسخة اليومية · Google Drive · الهاتف'
+                      : 'آخر نسخة: ${fmtDateTime(BackupService.I.lastDaily!)}',
+                  onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const _BackupPage())),
                 ),
               ]),
               const SectionHeader('التذكير بالمصاريف'),
               _Group(children: [
-                for (final m in AppSettings.options)
-                  _SwitchItem(
-                    icon: m == 0 ? Icons.notifications_active_rounded : Icons.alarm_rounded,
-                    title: Remind.label(m),
-                    subtitle: m == 0 ? 'إشعار في وقت الدفع نفسه' : 'إشعار ${Remind.label(m)} من موعد الدفع',
-                    value: AppSettings.reminders.value.contains(m),
-                    onChanged: (v) async {
-                      await AppSettings.setReminder(m, v);
-                      await NotificationService.I.rescheduleAll(AppStore.I.expenses);
-                    },
-                  ),
+                _Item(
+                  icon: Icons.alarm_rounded,
+                  title: 'التذكيرات',
+                  value: AppSettings.reminders.value.isEmpty
+                      ? 'متوقفة'
+                      : AppSettings.reminders.value.map(Remind.label).join('، '),
+                  onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const _RemindersPage())),
+                ),
                 _Item(
                   icon: Icons.notification_add_rounded,
                   title: 'إرسال إشعار تجريبي',
@@ -569,3 +391,264 @@ class _SwitchItem extends StatelessWidget {
       );
 }
 
+
+class _SubPage extends StatelessWidget {
+  final String title;
+  final List<Widget> children;
+  const _SubPage({required this.title, required this.children});
+  @override
+  Widget build(BuildContext context) => Scaffold(
+        appBar: AppBar(title: Text(title)),
+        body: AppBackground(
+          child: ListView(
+            padding: EdgeInsets.fromLTRB(18, 0, 18, 30 + MediaQuery.of(context).viewPadding.bottom),
+            children: children,
+          ),
+        ),
+      );
+}
+
+class _RemindersPage extends StatelessWidget {
+  const _RemindersPage();
+  @override
+  Widget build(BuildContext context) => ValueListenableBuilder<List<int>>(
+        valueListenable: AppSettings.reminders,
+        builder: (context, _, _) => _SubPage(title: 'التذكيرات', children: [
+          const SectionHeader('متى يصلك التذكير'),
+          _Group(children: [
+                for (final m in AppSettings.options)
+                  _SwitchItem(
+                    icon: m == 0 ? Icons.notifications_active_rounded : Icons.alarm_rounded,
+                    title: Remind.label(m),
+                    subtitle: m == 0 ? 'إشعار في وقت الدفع نفسه' : 'إشعار ${Remind.label(m)} من موعد الدفع',
+                    value: AppSettings.reminders.value.contains(m),
+                    onChanged: (v) async {
+                      await AppSettings.setReminder(m, v);
+                      await NotificationService.I.rescheduleAll(AppStore.I.expenses);
+                    },
+                  ),
+          ]),
+        ]),
+      );
+}
+
+class _BackupPage extends StatefulWidget {
+  const _BackupPage();
+  @override
+  State<_BackupPage> createState() => _BackupPageState();
+}
+
+class _BackupPageState extends State<_BackupPage> {
+  Future<void> _restoreSnapshot() async {
+    final snaps = await AppStore.I.listSnapshots();
+    if (!mounted) return;
+    if (snaps.isEmpty) {
+      toast(context, 'لا توجد نسخ تلقائية بعد');
+      return;
+    }
+    final f = await showModalBottomSheet<File>(
+      context: context,
+      builder: (c) => SafeArea(
+        child: ListView(
+          shrinkWrap: true,
+          padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+          children: [
+            const SheetHeader('النسخ التلقائية على الجهاز', subtitle: 'يحتفظ التطبيق بآخر 10 نسخ يومية تلقائياً'),
+            ...snaps.map((s) {
+              final n = s.uri.pathSegments.last.replaceAll('.json', '');
+              final dt = DateTime.tryParse(
+                  '${n.substring(0, 4)}-${n.substring(4, 6)}-${n.substring(6, 8)}T${n.substring(9, 11)}:${n.substring(11, 13)}');
+              return ListTile(
+                leading: const Icon(Icons.history_rounded),
+                title: Text(dt == null ? n : fmtDateTime(dt)),
+                onTap: () => Navigator.pop(c, s),
+              );
+            }),
+          ],
+        ),
+      ),
+    );
+    if (f == null || !mounted) return;
+    if (!await confirm(context, title: 'استعادة النسخة؟', message: 'ستُستبدل البيانات الحالية بهذه النسخة.', ok: 'استعادة')) {
+      return;
+    }
+    final err = await AppStore.I.importBackup(await f.readAsString());
+    if (mounted) toast(context, err ?? 'تمت الاستعادة بنجاح', error: err != null);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final p = Pal.of(context);
+    return ListenableBuilder(
+      listenable: BackupService.I,
+      builder: (context, _) {
+        final b = BackupService.I;
+        return _SubPage(title: 'النسخ الاحتياطي', children: [
+              const SectionHeader('النسخة اليومية على الجهاز'),
+              _Group(children: [
+                _Item(
+                  icon: Icons.schedule_rounded,
+                  title: 'نسخة تلقائية كل يوم الساعة 12 بالليل',
+                  value: b.lastDaily == null ? 'لم تُؤخذ أي نسخة بعد' : 'آخر نسخة: ${fmtDateTime(b.lastDaily!)}',
+                  valueColor: b.lastDaily == null ? p.faint : p.green,
+                ),
+                _PathTile(place: b.dailyPlace, path: b.dailyPath),
+                _Item(
+                  icon: Icons.backup_rounded,
+                  title: 'خذ نسخة الآن',
+                  value: 'تحديث ملف النسخة اليومية فوراً',
+                  onTap: () async {
+                    final ok = await b.writeDaily();
+                    if (context.mounted) toast(context, ok ? 'تم حفظ النسخة ✓' : 'تعذّر الحفظ', error: !ok);
+                  },
+                ),
+                _Item(
+                  icon: Icons.settings_backup_restore_rounded,
+                  title: 'استعادة من النسخة اليومية',
+                  value: 'ترجيع البيانات من ملف النسخة اليومية',
+                  onTap: () async {
+                    if (!await confirm(context,
+                        title: 'استعادة النسخة اليومية؟', message: 'ستُستبدل البيانات الحالية بمحتوى النسخة.', ok: 'متابعة')) {
+                      return;
+                    }
+                    final err = await b.restoreDaily();
+                    if (context.mounted) toast(context, err ?? 'تمت الاستعادة بنجاح ✓', error: err != null);
+                  },
+                ),
+              ]),
+              const SectionHeader('Google Drive'),
+              _Group(children: [
+                _Item(
+                  icon: Icons.add_to_drive_rounded,
+                  title: 'نسخ إلى Google Drive',
+                  value: 'من القائمة اختر تطبيق Drive واحفظ الملف',
+                  onTap: () async {
+                    try {
+                      await b.shareToDrive();
+                    } catch (_) {
+                      if (context.mounted) toast(context, 'تعذّر فتح المشاركة', error: true);
+                    }
+                  },
+                ),
+                _Item(
+                  icon: Icons.cloud_download_rounded,
+                  title: 'استيراد من Google Drive',
+                  value: 'افتح Drive من نافذة الملفات واختر ملف النسخة',
+                  onTap: () async {
+                    if (!await confirm(context,
+                        title: 'استعادة نسخة؟', message: 'ستُستبدل البيانات الحالية بمحتوى النسخة.', ok: 'متابعة')) {
+                      return;
+                    }
+                    final err = await b.restoreFromDevice();
+                    if (err == '' || !context.mounted) return;
+                    toast(context, err ?? 'تمت الاستعادة بنجاح ✓', error: err != null);
+                  },
+                ),
+              ]),
+              const SectionHeader('نسخ يدوي على الهاتف'),
+              _Group(children: [
+                _Item(
+                  icon: Icons.save_alt_rounded,
+                  title: 'حفظ نسخة على الهاتف',
+                  value: 'اختر مكان الحفظ (التنزيلات مثلاً)',
+                  onTap: () async {
+                    try {
+                      final ok = await b.saveToDevice();
+                      if (ok && context.mounted) toast(context, 'تم حفظ النسخة ✓');
+                    } catch (_) {
+                      if (context.mounted) toast(context, 'تعذّر الحفظ', error: true);
+                    }
+                  },
+                ),
+                _Item(
+                  icon: Icons.ios_share_rounded,
+                  title: 'مشاركة النسخة',
+                  value: 'أرسلها لنفسك على واتساب أو تيليجرام',
+                  onTap: b.shareBackup,
+                ),
+                _Item(
+                  icon: Icons.restore_page_rounded,
+                  title: 'استعادة من ملف',
+                  value: 'اختر ملف نسخة احتياطية (.json)',
+                  onTap: () async {
+                    if (!await confirm(context,
+                        title: 'استعادة من ملف؟', message: 'ستُستبدل البيانات الحالية بمحتوى الملف.', ok: 'متابعة')) {
+                      return;
+                    }
+                    final err = await b.restoreFromDevice();
+                    if (err == '' || !context.mounted) return;
+                    toast(context, err ?? 'تمت الاستعادة بنجاح ✓', error: err != null);
+                  },
+                ),
+                _Item(
+                  icon: Icons.history_rounded,
+                  title: 'النسخ التلقائية',
+                  value: 'آخر 10 نسخ يومية محفوظة داخل التطبيق',
+                  onTap: _restoreSnapshot,
+                ),
+              ]),
+        ]);
+      },
+    );
+  }
+}
+
+/// Collapsed by default; tap to see the full path, with a copy button.
+class _PathTile extends StatefulWidget {
+  final String place;
+  final String? path;
+  const _PathTile({required this.place, required this.path});
+  @override
+  State<_PathTile> createState() => _PathTileState();
+}
+
+class _PathTileState extends State<_PathTile> {
+  bool _open = false;
+  @override
+  Widget build(BuildContext context) {
+    final p = Pal.of(context);
+    return Column(children: [
+      _Item(
+        icon: Icons.folder_open_rounded,
+        title: 'مسار النسخة',
+        value: _open ? 'اضغط للإخفاء' : 'اضغط لعرض مكان الملف',
+        trailing: Icon(_open ? Icons.expand_less_rounded : Icons.expand_more_rounded, color: p.faint),
+        onTap: () => setState(() => _open = !_open),
+      ),
+      AnimatedSize(
+        duration: const Duration(milliseconds: 220),
+        child: !_open
+            ? const SizedBox(width: double.infinity)
+            : Container(
+                width: double.infinity,
+                margin: const EdgeInsets.fromLTRB(14, 0, 14, 12),
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: p.gold.withValues(alpha: 0.07),
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: p.gold.withValues(alpha: 0.22)),
+                ),
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text(widget.place, style: TextStyle(color: p.text, fontSize: 12.5, height: 1.5)),
+                  if (widget.path != null) ...[
+                    const SizedBox(height: 6),
+                    Text(widget.path!, textDirection: TextDirection.ltr, style: TextStyle(color: p.faint, fontSize: 11)),
+                    const SizedBox(height: 4),
+                    Align(
+                      alignment: AlignmentDirectional.centerEnd,
+                      child: TextButton.icon(
+                        onPressed: () {
+                          Clipboard.setData(ClipboardData(text: widget.path!));
+                          toast(context, 'تم نسخ المسار');
+                        },
+                        icon: const Icon(Icons.copy_rounded, size: 16),
+                        label: const Text('نسخ المسار'),
+                      ),
+                    ),
+                  ],
+                ]),
+              ),
+      ),
+    ]);
+  }
+}

@@ -6,6 +6,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'core/app_lock.dart';
 import 'core/backup.dart';
+import 'core/rate_service.dart';
 import 'core/license.dart';
 import 'core/notifications.dart';
 import 'core/settings.dart';
@@ -103,6 +104,7 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
     if (ok) {
       await AppStore.I.load();
       await BackupService.I.init();
+      await RateService.I.init();
       await NotificationService.I.rescheduleAll(AppStore.I.expenses);
     }
     final wait = const Duration(milliseconds: 1500) - DateTime.now().difference(started);
