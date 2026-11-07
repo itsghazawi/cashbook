@@ -307,7 +307,7 @@ class _TxnSheetState extends State<_TxnSheet> {
             textDirection: TextDirection.ltr,
             decoration: InputDecoration(
               labelText: 'سعر صرف الدولار اليوم (اختياري)',
-              hintText: 'مثلاً 13,000',
+              hintText: 'مثلاً 144',
               suffixText: 'ل.س / \$1',
               prefixIcon: const Icon(Icons.currency_exchange_rounded),
               helperText: 'يُستخدم لمعرفة قيمة المبلغ بالعملة الأخرى يوم العملية',

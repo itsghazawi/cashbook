@@ -65,7 +65,7 @@ class RateService extends ChangeNotifier with WidgetsBindingObserver {
     }
   }
 
-  /// Sell price of the US dollar in (old) Syrian pounds.
+  /// Sell price of the US dollar in new Syrian pounds.
   static Future<double> fetch() async {
     final client = HttpClient()..connectionTimeout = const Duration(seconds: 12);
     try {
@@ -91,22 +91,16 @@ class RateService extends ChangeNotifier with WidgetsBindingObserver {
         .replaceAll(RegExp(r'\s+'), ' ');
     double? num(String? s) => s == null ? null : double.tryParse(s.replaceAll(RegExp(r'[,٬]'), ''));
 
-    // 1) Sell price, old lira.
-    final sell = RegExp(r'بيع\s*[\d.,]+\s*ل\.س\s*جديدة\s*([\d,٬]+)\s*قديمة').firstMatch(text);
+    // 1) Sell price in the NEW lira (two zeros removed), e.g. 144.25.
+    final sell = RegExp(r'بيع\s*([\d.,]+)\s*ل\.س\s*جديدة').firstMatch(text);
     var v = num(sell?.group(1));
-    // 2) Any "N قديمة": take the second (sell) or the first.
+    // 2) Fallback: old-lira figure ÷ 100.
     if (v == null) {
       final all = RegExp(r'([\d][\d,٬]*)\s*قديمة').allMatches(text).map((m) => num(m.group(1))).whereType<double>()
           .where((x) => x > 1000).toList();
-      if (all.isNotEmpty) v = all.length > 1 ? all[1] : all[0];
+      if (all.isNotEmpty) v = (all.length > 1 ? all[1] : all[0]) / 100;
     }
-    // 3) New lira after "بيع" × 100.
-    if (v == null) {
-      final m = RegExp(r'بيع\s*([\d.,]+)\s*ل\.س').firstMatch(text);
-      final n = num(m?.group(1));
-      if (n != null) v = n * 100;
-    }
-    if (v == null || v < 1000 || v > 1000000) throw const FormatException('parse');
+    if (v == null || v < 10 || v > 100000) throw const FormatException('parse');
     return v;
   }
 }

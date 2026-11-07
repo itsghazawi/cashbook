@@ -6,6 +6,6 @@ import 'package:flutter_test/flutter_test.dart';
 void main() {
   test('parses sp-today sell price (old lira)', () {
     final html = File('test/fixtures/sp_today_usd.html').readAsStringSync();
-    expect(RateService.parse(html), 14425);
+    expect(RateService.parse(html), 144.25);
   });
 }
